@@ -1,0 +1,141 @@
+# Inkmaid プロジェクト - Cursor AI ルール
+
+## プロジェクト概要
+
+Inkmaidは、手書きとAIで直感的に図解するフルスタックプラットフォームです。
+ブラウザ上での手書き入力とAIエージェントによる論理的な構造操作を融合し、
+Mermaid図（フローチャート、ER図、シーケンス図等）を作成・編集・管理できます。
+
+## 技術スタック
+
+- **Framework**: Next.js 15 (App Router)
+- **Language**: TypeScript 5 (厳格モード)
+- **API**: tRPC v11 (型安全なクライアント/サーバー通信)
+- **Database**: PostgreSQL 16 + Drizzle ORM
+- **Styling**: Tailwind CSS 4
+- **AI**: Vercel AI SDK
+- **Linter/Formatter**: Biome
+- **Package Manager**: pnpm (workspace)
+- **Container**: Docker Compose
+
+## コーディング規約
+
+### 一般原則
+
+- 常に日本語でコメントとドキュメントを記述する
+- TypeScriptの型を明示的に定義する（anyは使用禁止）
+- 関数やコンポーネントにはJSDocコメントを付ける
+- エラーハンドリングを適切に行う
+
+### ファイル命名規則
+
+- コンポーネント: PascalCase (`DiagramCanvas.tsx`)
+- ユーティリティ/フック: camelCase (`useDiagram.ts`, `parseStroke.ts`)
+- 定数: SCREAMING_SNAKE_CASE (`MAX_STROKE_COUNT`)
+
+### ディレクトリ構成
+
+```
+apps/web/src/
+├── app/           # Next.js App Router ページ
+├── components/    # Reactコンポーネント
+├── lib/           # ユーティリティ、クライアント設定
+└── server/        # サーバーサイドロジック
+    ├── db/        # Drizzle スキーマ・クライアント
+    └── trpc/      # tRPC ルーター
+```
+
+### React/Next.js
+
+- Server Componentsをデフォルトとして使用
+- Client Componentsには `"use client"` を明示
+- `use` プレフィックスでカスタムフックを命名
+- コンポーネントは関数宣言で定義（アロー関数ではなく）
+
+```tsx
+// Good
+export default function DiagramCanvas() { ... }
+
+// Avoid
+const DiagramCanvas = () => { ... }
+```
+
+### tRPC
+
+- ルーターは `apps/web/src/server/trpc/routers/` に配置
+- 入力バリデーションには Zod を使用
+- エラーは TRPCError を使用して適切に処理
+
+```typescript
+import { z } from "zod";
+import { publicProcedure, router } from "../init";
+
+export const exampleRouter = router({
+  create: publicProcedure
+    .input(z.object({ name: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      // 処理
+    }),
+});
+```
+
+### Drizzle ORM
+
+- スキーマは `apps/web/src/server/db/schema.ts` に定義
+- テーブル名はスネークケース、カラム名もスネークケース
+- 型エクスポートは `$inferSelect` と `$inferInsert` を使用
+
+```typescript
+export const projects = pgTable("projects", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type Project = typeof projects.$inferSelect;
+export type NewProject = typeof projects.$inferInsert;
+```
+
+### Tailwind CSS
+
+- ユーティリティクラスを直接使用
+- 複雑なスタイルは `cn()` ヘルパーでクラスを結合
+- レスポンシブデザインを考慮（mobile-first）
+
+### 状態管理
+
+- サーバー状態: tRPC + TanStack Query
+- クライアント状態: React useState/useReducer
+- グローバル状態が必要な場合: Zustand を検討
+
+## コマンド
+
+| コマンド | 説明 |
+|---------|------|
+| `pnpm dev:all` | DB起動 → 開発サーバー起動 |
+| `pnpm db:push` | スキーマをDBに反映 |
+| `pnpm lint:fix` | Biomeで自動修正 |
+| `pnpm test` | テスト実行 |
+
+## 重要なファイル
+
+- `apps/web/src/server/db/schema.ts` - DBスキーマ定義
+- `apps/web/src/server/trpc/routers/` - APIルーター
+- `apps/web/src/lib/trpc/` - tRPCクライアント設定
+- `doc/develop.md` - 設計ドキュメント
+
+## 注意事項
+
+- `pnpm` を使用（npm/yarn は使用しない）
+- 環境変数は `.env.local` に設定（.envはルートのDocker用）
+- Biomeのルールに従う（ESLint/Prettierは使用しない）
+- コミット前に `pnpm lint:fix` を実行
+
+## AI開発時のガイドライン
+
+1. 新しい機能を追加する際は、まず `doc/develop.md` の設計を確認する
+2. tRPCルーターを追加したら `apps/web/src/server/trpc/routers/index.ts` に登録する
+3. DBスキーマを変更したら `pnpm db:push` を実行する
+4. Server ComponentsとClient Componentsを適切に分離する
+5. エラーメッセージは日本語で、ユーザーフレンドリーに記述する
+
