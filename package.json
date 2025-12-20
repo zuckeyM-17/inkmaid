@@ -15,7 +15,15 @@
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres",
     "db:restart": "docker compose restart postgres",
-    "db:reset": "docker compose down -v && docker compose up -d"
+    "db:reset": "docker compose down -v && docker compose up -d",
+    "db:push": "pnpm --filter web db:push",
+    "db:generate": "pnpm --filter web db:generate",
+    "db:migrate": "pnpm --filter web db:migrate",
+    "db:studio": "pnpm --filter web db:studio",
+    "prod:build": "docker compose -f docker-compose.prod.yml build",
+    "prod:up": "docker compose -f docker-compose.prod.yml up -d",
+    "prod:down": "docker compose -f docker-compose.prod.yml down",
+    "prod:logs": "docker compose -f docker-compose.prod.yml logs -f"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
