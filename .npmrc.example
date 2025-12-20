@@ -1,0 +1,14 @@
+# pnpm ストアディレクトリを固定（Cursor AI サンドボックス対策）
+# このファイルを .npmrc にコピーして、パスを自分の環境に合わせて修正してください
+#
+# macOS の場合:
+#   store-dir=/Users/YOUR_USERNAME/Library/pnpm/store/v3
+#
+# Linux の場合:
+#   store-dir=/home/YOUR_USERNAME/.local/share/pnpm/store/v3
+#
+# または、グローバル設定を使用:
+#   pnpm config set store-dir <path> --global
+
+store-dir=/Users/YOUR_USERNAME/Library/pnpm/store/v3
+

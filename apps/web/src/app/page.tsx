@@ -2,7 +2,7 @@
 
 import { trpc } from "@/lib/trpc/client";
 import { useState, useCallback } from "react";
-import DynamicHandwritingCanvas from "@/components/DynamicHandwritingCanvas";
+import DynamicDiagramCanvas from "@/components/DynamicDiagramCanvas";
 import type { Stroke } from "@/components/HandwritingCanvas";
 
 export default function Home() {
@@ -108,25 +108,23 @@ export default function Home() {
         {/* ヘッダー */}
         <header className="h-14 border-b border-gray-200 bg-white px-6 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-lg">🖊️</span>
-            <h2 className="text-lg font-semibold text-gray-800">手書きキャンバス</h2>
+            <span className="text-lg">📊</span>
+            <h2 className="text-lg font-semibold text-gray-800">ダイアグラムエディタ</h2>
           </div>
           <p className="text-sm text-gray-400">
-            自由に描いてみましょう
+            Mermaid + 手書きでダイアグラムを編集
           </p>
         </header>
 
         {/* キャンバスエリア */}
         <div className="flex-1 p-6 overflow-auto">
-          <div className="inline-block bg-white rounded-2xl shadow-lg shadow-indigo-100/50 border border-gray-100 p-3">
-            <DynamicHandwritingCanvas
-              width={1400}
-              height={700}
-              strokeColor="#3730a3"
-              strokeWidth={3}
-              onStrokeComplete={handleStrokeComplete}
-            />
-          </div>
+          <DynamicDiagramCanvas
+            width={1200}
+            height={600}
+            strokeColor="#3730a3"
+            strokeWidth={3}
+            onStrokeComplete={handleStrokeComplete}
+          />
 
           {/* デバッグ情報 */}
           {lastStroke && (

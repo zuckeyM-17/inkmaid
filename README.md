@@ -34,9 +34,15 @@ pnpm install
 # 3. 環境変数を設定
 cp .env.example .env
 
-# 4. 開発環境を起動（DB + Next.js）
+# 4. (Cursor AI使用時のみ) pnpmストア設定
+cp .npmrc.example .npmrc
+# .npmrc を編集して YOUR_USERNAME を自分のユーザー名に変更
+
+# 5. 開発環境を起動（DB + Next.js）
 pnpm dev:all
 ```
+
+> **Note**: Cursor AI のサンドボックス環境を使用する場合、手順4の `.npmrc` 設定が必要です。これにより pnpm のストアディレクトリの不一致エラーを防ぎます。
 
 ブラウザで http://localhost:3000 を開くと、アプリケーションが表示されます。
 

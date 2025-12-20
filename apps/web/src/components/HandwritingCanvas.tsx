@@ -140,9 +140,7 @@ export default function HandwritingCanvas({
       style={{
         width: `${width}px`,
         height: `${height}px`,
-        backgroundColor: "#fefefe",
-        borderRadius: "12px",
-        boxShadow: "inset 0 2px 8px rgba(0,0,0,0.06)",
+        backgroundColor: "transparent",
       }}
     >
       {/* ツールバー */}
