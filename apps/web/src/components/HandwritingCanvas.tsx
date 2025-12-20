@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect, useImperativeHandle, forwardRef } from "react";
 import { Stage, Layer, Line } from "react-konva";
 import type Konva from "konva";
 
@@ -19,6 +19,18 @@ export type Stroke = {
   strokeWidth: number;
 };
 
+/**
+ * HandwritingCanvasのref経由で呼び出せるメソッド
+ */
+export type HandwritingCanvasRef = {
+  /** 現在のストロークを取得 */
+  getStrokes: () => Stroke[];
+  /** ストロークを設定 */
+  setStrokes: (strokes: Stroke[]) => void;
+  /** ストロークをクリア */
+  clearStrokes: () => void;
+};
+
 type HandwritingCanvasProps = {
   /** キャンバスの幅 */
   width: number;
@@ -28,6 +40,8 @@ type HandwritingCanvasProps = {
   strokeColor?: string;
   /** ストロークの太さ */
   strokeWidth?: number;
+  /** 初期ストロークデータ */
+  initialStrokes?: Stroke[];
   /** ストロークが追加されたときのコールバック */
   onStrokeComplete?: (stroke: Stroke) => void;
   /** ストロークデータが更新されたときのコールバック */
@@ -38,20 +52,44 @@ type HandwritingCanvasProps = {
  * 手書き入力用のCanvasコンポーネント
  * Konva.jsを使用してスムーズな手書き体験を提供
  */
-export default function HandwritingCanvas({
-  width,
-  height,
-  strokeColor = "#1a1a2e",
-  strokeWidth = 3,
-  onStrokeComplete,
-  onStrokesChange,
-}: HandwritingCanvasProps) {
-  // 描画中のストローク
-  const [currentStroke, setCurrentStroke] = useState<number[]>([]);
-  // 完了したストローク一覧
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
-  // 描画中フラグ
-  const isDrawing = useRef(false);
+const HandwritingCanvas = forwardRef<HandwritingCanvasRef, HandwritingCanvasProps>(
+  function HandwritingCanvas(
+    {
+      width,
+      height,
+      strokeColor = "#1a1a2e",
+      strokeWidth = 3,
+      initialStrokes = [],
+      onStrokeComplete,
+      onStrokesChange,
+    },
+    ref
+  ) {
+    // 描画中のストローク
+    const [currentStroke, setCurrentStroke] = useState<number[]>([]);
+    // 完了したストローク一覧
+    const [strokes, setStrokes] = useState<Stroke[]>(initialStrokes);
+    // 描画中フラグ
+    const isDrawing = useRef(false);
+
+    // 初期ストロークが変更されたら反映
+    useEffect(() => {
+      setStrokes(initialStrokes);
+    }, [initialStrokes]);
+
+    // refからアクセスできるメソッドを公開
+    useImperativeHandle(ref, () => ({
+      getStrokes: () => strokes,
+      setStrokes: (newStrokes: Stroke[]) => {
+        setStrokes(newStrokes);
+        onStrokesChange?.(newStrokes);
+      },
+      clearStrokes: () => {
+        setStrokes([]);
+        setCurrentStroke([]);
+        onStrokesChange?.([]);
+      },
+    }), [strokes, onStrokesChange]);
 
   /**
    * ユニークなIDを生成
@@ -213,5 +251,7 @@ export default function HandwritingCanvas({
       </div>
     </div>
   );
-}
+});
+
+export default HandwritingCanvas;
 

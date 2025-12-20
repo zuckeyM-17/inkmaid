@@ -5,9 +5,19 @@ import { useState, useCallback } from "react";
 import DynamicDiagramCanvas from "@/components/DynamicDiagramCanvas";
 import type { Stroke } from "@/components/HandwritingCanvas";
 
+/**
+ * 選択中のプロジェクト情報
+ */
+type SelectedProject = {
+  id: string;
+  name: string;
+  mermaidCode: string;
+  strokes: Stroke[];
+};
+
 export default function Home() {
   const [projectName, setProjectName] = useState("");
-  const [lastStroke, setLastStroke] = useState<Stroke | null>(null);
+  const [selectedProject, setSelectedProject] = useState<SelectedProject | null>(null);
 
   // プロジェクト一覧を取得
   const { data: projects, refetch } = trpc.diagram.listProjects.useQuery();
@@ -20,6 +30,22 @@ export default function Home() {
     },
   });
 
+  // プロジェクト詳細（ストローク含む）を取得
+  const getProjectWithStrokes = trpc.diagram.getProjectWithStrokes.useQuery(
+    { projectId: selectedProject?.id ?? "" },
+    { enabled: !!selectedProject?.id }
+  );
+
+  // ダイアグラムとストロークを保存
+  const saveDiagramWithStrokes = trpc.diagram.saveDiagramWithStrokes.useMutation({
+    onSuccess: () => {
+      refetch();
+    },
+  });
+
+  /**
+   * プロジェクト作成
+   */
   const handleCreate = () => {
     if (projectName.trim()) {
       createProject.mutate({ name: projectName });
@@ -27,12 +53,46 @@ export default function Home() {
   };
 
   /**
-   * ストロークが完了したときのハンドラ
+   * プロジェクト選択
    */
-  const handleStrokeComplete = useCallback((stroke: Stroke) => {
-    setLastStroke(stroke);
-    console.log("ストローク完了:", stroke);
+  const handleSelectProject = useCallback((project: { id: string; name: string }) => {
+    setSelectedProject({
+      id: project.id,
+      name: project.name,
+      mermaidCode: "",
+      strokes: [],
+    });
   }, []);
+
+  /**
+   * プロジェクト選択解除
+   */
+  const handleDeselectProject = useCallback(() => {
+    setSelectedProject(null);
+  }, []);
+
+  /**
+   * 保存ボタンのハンドラ
+   */
+  const handleSave = useCallback(
+    (data: { mermaidCode: string; strokes: Stroke[] }) => {
+      if (!selectedProject) return;
+
+      saveDiagramWithStrokes.mutate({
+        projectId: selectedProject.id,
+        mermaidCode: data.mermaidCode,
+        strokes: data.strokes,
+        updateType: "handwriting",
+        reason: "手書き編集による更新",
+      });
+    },
+    [selectedProject, saveDiagramWithStrokes]
+  );
+
+  // プロジェクト詳細データを取得した後の情報
+  const projectData = getProjectWithStrokes.data;
+  const currentMermaidCode = projectData?.latestVersion?.mermaidCode ?? "flowchart TD\n    A[Start]";
+  const currentStrokes = (projectData?.strokes ?? []) as Stroke[];
 
   return (
     <div className="h-screen flex overflow-hidden bg-slate-50">
@@ -89,9 +149,21 @@ export default function Home() {
             {projects?.map((project) => (
               <li
                 key={project.id}
-                className="p-3 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/50 cursor-pointer transition-all group"
+                onClick={() => handleSelectProject(project)}
+                onKeyDown={(e) => e.key === "Enter" && handleSelectProject(project)}
+                className={`p-3 rounded-lg border cursor-pointer transition-all group ${
+                  selectedProject?.id === project.id
+                    ? "border-indigo-400 bg-indigo-50 ring-2 ring-indigo-200"
+                    : "border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/50"
+                }`}
               >
-                <div className="text-sm font-medium text-gray-700 group-hover:text-indigo-700 transition-colors truncate">
+                <div
+                  className={`text-sm font-medium transition-colors truncate ${
+                    selectedProject?.id === project.id
+                      ? "text-indigo-700"
+                      : "text-gray-700 group-hover:text-indigo-700"
+                  }`}
+                >
                   {project.name}
                 </div>
                 <div className="text-xs text-gray-400 mt-0.5">
@@ -109,31 +181,76 @@ export default function Home() {
         <header className="h-14 border-b border-gray-200 bg-white px-6 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-lg">📊</span>
-            <h2 className="text-lg font-semibold text-gray-800">ダイアグラムエディタ</h2>
+            {selectedProject ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDeselectProject}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  title="プロジェクト一覧に戻る"
+                >
+                  ←
+                </button>
+                <h2 className="text-lg font-semibold text-gray-800">
+                  {selectedProject.name}
+                </h2>
+              </div>
+            ) : (
+              <h2 className="text-lg font-semibold text-gray-800">ダイアグラムエディタ</h2>
+            )}
           </div>
           <p className="text-sm text-gray-400">
-            Mermaid + 手書きでダイアグラムを編集
+            {selectedProject
+              ? "Mermaid + 手書きでダイアグラムを編集"
+              : "プロジェクトを選択してください"}
           </p>
         </header>
 
         {/* キャンバスエリア */}
         <div className="flex-1 p-6 overflow-auto">
-          <DynamicDiagramCanvas
-            width={1200}
-            height={600}
-            strokeColor="#3730a3"
-            strokeWidth={3}
-            onStrokeComplete={handleStrokeComplete}
-          />
-
-          {/* デバッグ情報 */}
-          {lastStroke && (
-            <div className="mt-4 p-3 bg-gray-900 rounded-lg text-xs font-mono text-gray-300 inline-block">
-              <span className="text-indigo-400">最後のストローク:</span>{" "}
-              {lastStroke.points.length / 2} 点, ID: {lastStroke.id}
+          {selectedProject ? (
+            getProjectWithStrokes.isLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-gray-500">プロジェクトを読み込み中...</p>
+                </div>
+              </div>
+            ) : (
+              <DynamicDiagramCanvas
+                key={selectedProject.id}
+                width={1200}
+                height={600}
+                strokeColor="#3730a3"
+                strokeWidth={3}
+                initialMermaidCode={currentMermaidCode}
+                initialStrokes={currentStrokes}
+                isSaving={saveDiagramWithStrokes.isPending}
+                onSave={handleSave}
+              />
+            )
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <span className="text-6xl mb-4 block">📝</span>
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                  プロジェクトを選択
+                </h3>
+                <p className="text-gray-500">
+                  左のサイドバーからプロジェクトを選択するか、新規作成してください
+                </p>
+              </div>
             </div>
           )}
         </div>
+
+        {/* 保存成功メッセージ */}
+        {saveDiagramWithStrokes.isSuccess && (
+          <div className="fixed bottom-6 right-6 bg-emerald-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
+            <span>✅</span>
+            <span>保存しました！</span>
+          </div>
+        )}
       </main>
     </div>
   );

@@ -12,14 +12,20 @@ type DiagramCanvasProps = {
   height: number;
   /** 初期のMermaidコード */
   initialMermaidCode?: string;
+  /** 初期のストロークデータ */
+  initialStrokes?: Stroke[];
   /** ストロークの色 */
   strokeColor?: string;
   /** ストロークの太さ */
   strokeWidth?: number;
+  /** 保存中かどうか */
+  isSaving?: boolean;
   /** ストロークが完了したときのコールバック */
   onStrokeComplete?: (stroke: Stroke) => void;
   /** Mermaidコードが更新されたときのコールバック */
   onMermaidCodeChange?: (code: string) => void;
+  /** 保存ボタンが押されたときのコールバック */
+  onSave?: (data: { mermaidCode: string; strokes: Stroke[] }) => void;
 };
 
 /**
@@ -41,14 +47,19 @@ export default function DiagramCanvas({
   width,
   height,
   initialMermaidCode = SAMPLE_MERMAID_CODE,
+  initialStrokes = [],
   strokeColor = "#3730a3",
   strokeWidth = 3,
+  isSaving = false,
   onStrokeComplete,
   onMermaidCodeChange,
+  onSave,
 }: DiagramCanvasProps) {
   const [mermaidCode, setMermaidCode] = useState(initialMermaidCode);
+  const [strokes, setStrokes] = useState<Stroke[]>(initialStrokes);
   const [isEditing, setIsEditing] = useState(false);
   const [editingCode, setEditingCode] = useState(initialMermaidCode);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   /**
    * ストローク完了時のハンドラ
@@ -56,10 +67,18 @@ export default function DiagramCanvas({
   const handleStrokeComplete = useCallback(
     (stroke: Stroke) => {
       onStrokeComplete?.(stroke);
-      // TODO: ストロークをAIに送信して図を更新
+      setHasUnsavedChanges(true);
     },
     [onStrokeComplete]
   );
+
+  /**
+   * ストロークが変更されたときのハンドラ
+   */
+  const handleStrokesChange = useCallback((newStrokes: Stroke[]) => {
+    setStrokes(newStrokes);
+    setHasUnsavedChanges(true);
+  }, []);
 
   /**
    * Mermaidコードの更新
@@ -67,6 +86,7 @@ export default function DiagramCanvas({
   const handleCodeUpdate = useCallback(() => {
     setMermaidCode(editingCode);
     setIsEditing(false);
+    setHasUnsavedChanges(true);
     onMermaidCodeChange?.(editingCode);
   }, [editingCode, onMermaidCodeChange]);
 
@@ -77,6 +97,14 @@ export default function DiagramCanvas({
     setEditingCode(mermaidCode);
     setIsEditing(false);
   }, [mermaidCode]);
+
+  /**
+   * 保存ボタンのハンドラ
+   */
+  const handleSave = useCallback(() => {
+    onSave?.({ mermaidCode, strokes });
+    setHasUnsavedChanges(false);
+  }, [mermaidCode, strokes, onSave]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -105,7 +133,9 @@ export default function DiagramCanvas({
             height={height}
             strokeColor={strokeColor}
             strokeWidth={strokeWidth}
+            initialStrokes={initialStrokes}
             onStrokeComplete={handleStrokeComplete}
+            onStrokesChange={handleStrokesChange}
           />
         </div>
 
@@ -120,7 +150,40 @@ export default function DiagramCanvas({
             Mermaid
           </div>
         </div>
+
+        {/* 未保存の変更インジケータ */}
+        {hasUnsavedChanges && (
+          <div className="absolute top-3 left-3 z-20">
+            <div className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded-full flex items-center gap-1">
+              <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+              未保存の変更あり
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* アクションバー */}
+      {onSave && (
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving || !hasUnsavedChanges}
+            className="px-4 py-2 text-sm bg-linear-to-r from-indigo-600 to-purple-600 text-white font-medium rounded-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+          >
+            {isSaving ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                保存中...
+              </>
+            ) : (
+              <>
+                💾 保存
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Mermaidコードエディタ */}
       <div className="bg-gray-900 rounded-xl p-4 text-sm">
@@ -171,7 +234,12 @@ export default function DiagramCanvas({
           </pre>
         )}
       </div>
+
+      {/* デバッグ情報 */}
+      <div className="text-xs text-gray-400 flex gap-4">
+        <span>📊 ストローク: {strokes.length}</span>
+        <span>📝 コード: {mermaidCode.length} 文字</span>
+      </div>
     </div>
   );
 }
-
