@@ -62,7 +62,7 @@ export const handwritingStrokes = pgTable("handwriting_strokes", {
   versionId: integer("version_id")
     .references(() => diagramVersions.id, { onDelete: "cascade" })
     .notNull(),
-  // Fabric.js等のCanvasから出力される座標データのJSON
+  // Konva.js等のCanvasから出力される座標データのJSON
   strokeData: jsonb("stroke_data").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

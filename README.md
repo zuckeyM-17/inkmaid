@@ -293,7 +293,7 @@ DATABASE_URL="postgresql://inkmaid:inkmaid_password@localhost:5432/inkmaid" pnpm
 
 ### Phase 2: コア機能の実装
 
-- [ ] 手書きCanvas（Fabric.js）
+- [ ] 手書きCanvas（Konva.js）
 - [ ] Mermaid.js による図の描画
 - [ ] Vercel AI SDK による AIチャットボット
 

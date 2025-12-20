@@ -85,7 +85,7 @@ AI SDKの**Tool Calling（関数呼び出し）**機能を利用し、自然言�
 ブラウザ上で「手書き」と「図」を共存させるため、2層のレイヤー構造を採用します。
 
 1. **SVG Layer (Mermaid.js):** AIが生成したMermaidコードをレンダリング。
-2. **Handwriting Layer (Fabric.js):** ユーザーの手書きストロークを受け付ける透明なCanvas。
+2. **Handwriting Layer (Konva.js):** ユーザーの手書きストロークを受け付ける透明なCanvas。
 
 ### 4.2 AIエージェントとパーサー戦略
 
@@ -189,7 +189,7 @@ export const handwritingStrokes = pgTable("handwriting_strokes", {
   versionId: integer("version_id")
     .references(() => diagramVersions.id, { onDelete: "cascade" })
     .notNull(),
-  // Fabric.js等のCanvasから出力される座標データのJSON
+  // Konva.js等のCanvasから出力される座標データのJSON
   strokeData: jsonb("stroke_data").notNull(), 
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -232,7 +232,7 @@ Mermaidパーサーで解析した結果（ノードのリストや接続関係�
 
 ### Phase 2: コア機能の実装
 
-* 手書きCanvas (Fabric.js) と Mermaid 描画の統合。
+* 手書きCanvas (Konva.js) と Mermaid 描画の統合。
 * tRPC + Vercel AI SDK による基本的な AI チャットボットの実装。
 
 ### Phase 3: 高度な編集と最適化
