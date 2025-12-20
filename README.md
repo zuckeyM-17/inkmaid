@@ -316,5 +316,5 @@ DATABASE_URL="postgresql://inkmaid:inkmaid_password@localhost:5432/inkmaid" pnpm
 
 ## 📝 ライセンス
 
-このプロジェクトはプライベートリポジトリです。
+このプロジェクトは [MIT License](./LICENSE) の下で公開されています。
 
