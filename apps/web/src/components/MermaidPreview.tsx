@@ -3,6 +3,90 @@
 import { useEffect, useRef, useState } from "react";
 import mermaid from "mermaid";
 
+/**
+ * MermaidのSVGからノードの位置情報を抽出する
+ */
+function extractNodePositions(
+  svgElement: SVGSVGElement,
+  container: HTMLElement
+): NodePosition[] {
+  const positions: NodePosition[] = [];
+  
+  // コンテナの位置を取得（相対座標計算用）
+  const containerRect = container.getBoundingClientRect();
+  const svgRect = svgElement.getBoundingClientRect();
+  
+  // SVGのviewBoxを考慮したスケール計算
+  const viewBox = svgElement.viewBox.baseVal;
+  const scaleX = svgRect.width / (viewBox.width || svgRect.width);
+  const scaleY = svgRect.height / (viewBox.height || svgRect.height);
+  
+  // SVGのオフセット（コンテナ内でのSVGの位置）
+  const svgOffsetX = svgRect.left - containerRect.left;
+  const svgOffsetY = svgRect.top - containerRect.top;
+  
+  // .node クラスを持つ要素（フローチャートのノード）を取得
+  const nodeElements = svgElement.querySelectorAll(".node");
+  
+  for (const node of nodeElements) {
+    try {
+      // ノードのIDを取得（flowchart-nodeId-xxx 形式）
+      const fullId = node.id || "";
+      // flowchart-A-0 → A のように抽出
+      const idMatch = fullId.match(/flowchart-([^-]+)-/);
+      const nodeId = idMatch ? idMatch[1] : fullId;
+      
+      // ラベルテキストを取得
+      const labelElement = node.querySelector(".nodeLabel, text, foreignObject");
+      const label = labelElement?.textContent?.trim() || nodeId;
+      
+      // ノードのbounding boxを取得
+      const nodeRect = node.getBoundingClientRect();
+      
+      // コンテナ内の相対座標に変換
+      const x = nodeRect.left - containerRect.left;
+      const y = nodeRect.top - containerRect.top;
+      const nodeWidth = nodeRect.width;
+      const nodeHeight = nodeRect.height;
+      
+      positions.push({
+        id: nodeId,
+        label,
+        x: Math.round(x),
+        y: Math.round(y),
+        width: Math.round(nodeWidth),
+        height: Math.round(nodeHeight),
+        centerX: Math.round(x + nodeWidth / 2),
+        centerY: Math.round(y + nodeHeight / 2),
+      });
+    } catch (err) {
+      console.warn("ノード位置の抽出に失敗:", err);
+    }
+  }
+  
+  return positions;
+}
+
+/** ノードの位置情報 */
+export type NodePosition = {
+  /** ノードのID（Mermaidコード内のID） */
+  id: string;
+  /** ノードのラベルテキスト */
+  label: string;
+  /** 左上のX座標 */
+  x: number;
+  /** 左上のY座標 */
+  y: number;
+  /** ノードの幅 */
+  width: number;
+  /** ノードの高さ */
+  height: number;
+  /** 中心X座標 */
+  centerX: number;
+  /** 中心Y座標 */
+  centerY: number;
+};
+
 type MermaidPreviewProps = {
   /** Mermaidコード */
   code: string;
@@ -12,6 +96,10 @@ type MermaidPreviewProps = {
   height: number;
   /** ユニークID（複数のプレビューを区別するため） */
   id?: string;
+  /** パースエラー時のコールバック */
+  onParseError?: (error: string, code: string) => void;
+  /** レンダリング成功時のコールバック（ノード位置情報付き） */
+  onRenderSuccess?: (nodePositions: NodePosition[]) => void;
 };
 
 /**
@@ -23,6 +111,8 @@ export default function MermaidPreview({
   width,
   height,
   id = "mermaid-preview",
+  onParseError,
+  onRenderSuccess,
 }: MermaidPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +147,9 @@ export default function MermaidPreview({
         // Mermaidコードの構文チェック
         const isValid = await mermaid.parse(code);
         if (!isValid) {
-          setError("Mermaidコードの構文が無効です");
+          const errorMsg = "Mermaidコードの構文が無効です";
+          setError(errorMsg);
+          onParseError?.(errorMsg, code);
           return;
         }
 
@@ -72,11 +164,19 @@ export default function MermaidPreview({
           if (svgElement) {
             svgElement.style.maxWidth = "100%";
             svgElement.style.maxHeight = "100%";
+            
+            // ノードの位置情報を抽出
+            const nodePositions = extractNodePositions(svgElement, containerRef.current);
+            
+            // レンダリング成功を通知（ノード位置情報付き）
+            onRenderSuccess?.(nodePositions);
           }
         }
       } catch (err) {
         console.error("Mermaid レンダリングエラー:", err);
-        setError(err instanceof Error ? err.message : "レンダリングに失敗しました");
+        const errorMsg = err instanceof Error ? err.message : "レンダリングに失敗しました";
+        setError(errorMsg);
+        onParseError?.(errorMsg, code);
       }
     };
 

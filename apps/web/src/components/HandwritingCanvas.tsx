@@ -29,6 +29,8 @@ export type HandwritingCanvasRef = {
   setStrokes: (strokes: Stroke[]) => void;
   /** ストロークをクリア */
   clearStrokes: () => void;
+  /** ストロークを画像としてエクスポート（Base64 PNG） */
+  toDataURL: () => string | null;
 };
 
 type HandwritingCanvasProps = {
@@ -71,6 +73,8 @@ const HandwritingCanvas = forwardRef<HandwritingCanvasRef, HandwritingCanvasProp
     const [strokes, setStrokes] = useState<Stroke[]>(initialStrokes);
     // 描画中フラグ
     const isDrawing = useRef(false);
+    // Konvaステージへの参照
+    const stageRef = useRef<Konva.Stage>(null);
 
     // 初期ストロークが変更されたら反映
     useEffect(() => {
@@ -88,6 +92,10 @@ const HandwritingCanvas = forwardRef<HandwritingCanvasRef, HandwritingCanvasProp
         setStrokes([]);
         setCurrentStroke([]);
         onStrokesChange?.([]);
+      },
+      toDataURL: () => {
+        if (!stageRef.current) return null;
+        return stageRef.current.toDataURL({ pixelRatio: 1 });
       },
     }), [strokes, onStrokesChange]);
 
@@ -205,6 +213,7 @@ const HandwritingCanvas = forwardRef<HandwritingCanvasRef, HandwritingCanvasProp
 
       {/* キャンバス */}
       <Stage
+        ref={stageRef}
         width={width}
         height={height}
         onMouseDown={handleMouseDown}
