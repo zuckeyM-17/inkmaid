@@ -139,6 +139,8 @@ export type NewProject = typeof projects.$inferInsert;
 4. Server ComponentsとClient Componentsを適切に分離する
 5. エラーメッセージは日本語で、ユーザーフレンドリーに記述する
 6. **作業の終わりに `doc/logs/` の開発ログを更新する**
+   - ディレクトリ構造: `doc/logs/YYYY/MM/` （年/月でまとめる）
    - ファイル名: `YYYYMMDD.md` または `YYYYMMDD-N.md`（同日複数回の場合）
+   - 例: `doc/logs/2025/12/20251221-1.md`
    - 内容: 実装した機能、追加/変更したファイル、次のステップ
 
