@@ -57,60 +57,19 @@ export const DIAGRAM_TYPE_INFO: Record<
 };
 
 /**
- * 図の種類ごとの初期Mermaidコード
+ * 図の種類ごとの初期Mermaidコード（最小限のテンプレート）
  */
 export const DIAGRAM_TEMPLATES: Record<DiagramType, string> = {
   flowchart: `flowchart TD
-    A[開始] --> B{条件}
-    B -->|Yes| C[処理1]
-    B -->|No| D[処理2]
-    C --> E[終了]
-    D --> E`,
+    A[開始]`,
   sequence: `sequenceDiagram
-    participant User as ユーザー
-    participant System as システム
-    participant DB as データベース
-    
-    User->>System: リクエスト
-    System->>DB: データ取得
-    DB-->>System: データ返却
-    System-->>User: レスポンス`,
+    participant A as アクター`,
   classDiagram: `classDiagram
-    class Animal {
-        +String name
-        +int age
-        +makeSound()
-    }
-    class Dog {
-        +String breed
-        +bark()
-    }
-    class Cat {
-        +String color
-        +meow()
-    }
-    Animal <|-- Dog
-    Animal <|-- Cat`,
+    class MyClass`,
   stateDiagram: `stateDiagram-v2
-    [*] --> Idle
-    Idle --> Processing : start
-    Processing --> Success : complete
-    Processing --> Error : fail
-    Success --> [*]
-    Error --> Idle : retry`,
+    [*] --> State1`,
   erDiagram: `erDiagram
-    USERS {
-        int id PK
-        string name
-        string email
-    }
-    POSTS {
-        int id PK
-        string title
-        text content
-        int user_id FK
-    }
-    USERS ||--o{ POSTS : writes`,
+    ENTITY`,
 };
 
 // 1. プロジェクト（図）の基本情報
