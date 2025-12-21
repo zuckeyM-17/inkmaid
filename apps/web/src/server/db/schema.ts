@@ -118,7 +118,7 @@ export const chatMessages = pgTable("chat_messages", {
   content: text("content").notNull(),
   // このメッセージの結果として生成された図のバージョンID
   resultingVersionId: integer("resulting_version_id").references(
-    () => diagramVersions.id
+    () => diagramVersions.id,
   ),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -149,4 +149,3 @@ export type NewChatMessage = typeof chatMessages.$inferInsert;
 
 export type HandwritingStroke = typeof handwritingStrokes.$inferSelect;
 export type NewHandwritingStroke = typeof handwritingStrokes.$inferInsert;
-

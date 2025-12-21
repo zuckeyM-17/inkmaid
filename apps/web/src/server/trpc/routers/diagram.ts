@@ -40,7 +40,7 @@ export const diagramRouter = router({
         name: z.string().min(1).max(255),
         diagramType: diagramTypeSchema.optional().default("flowchart"),
         initialMermaidCode: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const diagramType = input.diagramType as DiagramType;
@@ -105,7 +105,7 @@ export const diagramRouter = router({
         mermaidCode: z.string(),
         updateType: z.enum(["initial", "chat", "handwriting"]),
         reason: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       // 現在の最新バージョン番号を取得
@@ -148,7 +148,7 @@ export const diagramRouter = router({
         strokes: z.array(strokeSchema),
         updateType: z.enum(["initial", "chat", "handwriting"]),
         reason: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       // 現在の最新バージョン番号を取得
@@ -226,4 +226,3 @@ export const diagramRouter = router({
       };
     }),
 });
-

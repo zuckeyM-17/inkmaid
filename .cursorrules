@@ -143,4 +143,9 @@ export type NewProject = typeof projects.$inferInsert;
    - ファイル名: `YYYYMMDD.md` または `YYYYMMDD-N.md`（同日複数回の場合）
    - 例: `doc/logs/2025/12/20251221-1.md`
    - 内容: 実装した機能、追加/変更したファイル、次のステップ
+7. **APIを追加・変更したら `doc/api-reference.md` を更新する**
+   - tRPCルーターの新規追加・変更
+   - REST APIエンドポイントの追加
+   - 型定義の変更
+   - 使用例のコード追加
 

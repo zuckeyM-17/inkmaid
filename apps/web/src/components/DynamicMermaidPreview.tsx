@@ -21,5 +21,6 @@ const DynamicMermaidPreview = dynamic(() => import("./MermaidPreview"), {
 
 export default DynamicMermaidPreview;
 
-export type MermaidPreviewProps = ComponentProps<typeof MermaidPreviewComponent>;
-
+export type MermaidPreviewProps = ComponentProps<
+  typeof MermaidPreviewComponent
+>;

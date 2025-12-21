@@ -1,9 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    ":preserveSemverRanges"
-  ],
+  "extends": ["config:recommended", ":preserveSemverRanges"],
   "labels": ["dependencies"],
   "timezone": "Asia/Tokyo",
   "schedule": ["every weekend"],
@@ -35,7 +32,12 @@
     {
       "description": "React関連パッケージを同時更新",
       "groupName": "React",
-      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"],
+      "matchPackageNames": [
+        "react",
+        "react-dom",
+        "@types/react",
+        "@types/react-dom"
+      ],
       "matchUpdateTypes": ["major", "minor", "patch"]
     },
     {
@@ -80,4 +82,3 @@
   "postUpdateOptions": ["pnpmDedupe"],
   "ignoreDeps": []
 }
-

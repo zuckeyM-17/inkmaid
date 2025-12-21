@@ -16,4 +16,3 @@ const t = initTRPC.context<TRPCContext>().create();
 // 基本のルーターとプロシージャ
 export const router = t.router;
 export const publicProcedure = t.procedure;
-

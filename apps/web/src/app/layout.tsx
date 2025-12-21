@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import { TRPCProvider } from "@/lib/trpc/provider";
+import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,4 +20,3 @@ export default function RootLayout({
     </html>
   );
 }
-

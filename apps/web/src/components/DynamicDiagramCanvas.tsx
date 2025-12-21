@@ -18,4 +18,3 @@ const DynamicDiagramCanvas = dynamic(() => import("./DiagramCanvas"), {
 });
 
 export default DynamicDiagramCanvas;
-

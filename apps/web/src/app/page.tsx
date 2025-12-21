@@ -1,15 +1,17 @@
 "use client";
 
-import { trpc } from "@/lib/trpc/client";
-import { useState, useCallback, useEffect } from "react";
+import AIThinkingPanel from "@/components/AIThinkingPanel";
+import type { ConvertWithAIData } from "@/components/DiagramCanvas";
 import DynamicDiagramCanvas from "@/components/DynamicDiagramCanvas";
 import type { Stroke } from "@/components/HandwritingCanvas";
-import type { ConvertWithAIData } from "@/components/DiagramCanvas";
+import { useAIStream } from "@/lib/hooks/useAIStream";
+import { trpc } from "@/lib/trpc/client";
 import {
   DIAGRAM_TYPES,
   DIAGRAM_TYPE_INFO,
   type DiagramType,
 } from "@/server/db/schema";
+import { useCallback, useEffect, useState } from "react";
 
 /**
  * 選択中のプロジェクト情報
@@ -22,9 +24,11 @@ type SelectedProject = {
 
 export default function Home() {
   const [projectName, setProjectName] = useState("");
-  const [selectedDiagramType, setSelectedDiagramType] = useState<DiagramType>("flowchart");
-  const [selectedProject, setSelectedProject] = useState<SelectedProject | null>(null);
-  
+  const [selectedDiagramType, setSelectedDiagramType] =
+    useState<DiagramType>("flowchart");
+  const [selectedProject, setSelectedProject] =
+    useState<SelectedProject | null>(null);
+
   // 編集中のMermaidコード
   const [editingMermaidCode, setEditingMermaidCode] = useState<string>("");
   const [editingStrokes, setEditingStrokes] = useState<Stroke[]>([]);
@@ -32,14 +36,16 @@ export default function Home() {
   const [canvasKey, setCanvasKey] = useState(0);
   // AI変換結果のフィードバック
   const [lastAiResult, setLastAiResult] = useState<string | null>(null);
-  // AIの思考過程
-  const [aiThinking, setAiThinking] = useState<string | null>(null);
-  // 思考過程の表示切り替え
-  const [showThinking, setShowThinking] = useState(false);
   // エラーリトライ回数
   const [errorRetryCount, setErrorRetryCount] = useState(0);
   // 最大リトライ回数
   const MAX_RETRY_COUNT = 3;
+
+  // AI思考パネルの表示状態
+  const [showThinkingPanel, setShowThinkingPanel] = useState(true);
+
+  // AIストリーミングフック
+  const aiStream = useAIStream();
 
   // プロジェクト一覧を取得
   const { data: projects, refetch } = trpc.diagram.listProjects.useQuery();
@@ -56,46 +62,53 @@ export default function Home() {
   // プロジェクト詳細（ストローク含む）を取得
   const getProjectWithStrokes = trpc.diagram.getProjectWithStrokes.useQuery(
     { projectId: selectedProject?.id ?? "" },
-    { enabled: !!selectedProject?.id }
+    { enabled: !!selectedProject?.id },
   );
 
   // ダイアグラムとストロークを保存
-  const saveDiagramWithStrokes = trpc.diagram.saveDiagramWithStrokes.useMutation({
-    onSuccess: () => {
-      refetch();
-      getProjectWithStrokes.refetch();
-    },
-  });
+  const saveDiagramWithStrokes =
+    trpc.diagram.saveDiagramWithStrokes.useMutation({
+      onSuccess: () => {
+        refetch();
+        getProjectWithStrokes.refetch();
+      },
+    });
 
-  // ストローク解釈API
-  const interpretStrokes = trpc.ai.interpretStrokes.useMutation({
-    onSuccess: (data) => {
-      if (data.wasUpdated && data.updatedMermaidCode) {
-        console.log("AI Response:", { reasoning: data.reasoning, thinking: data.thinking });
-        setEditingMermaidCode(data.updatedMermaidCode);
+  // ストローク解釈完了時のコールバック
+  const handleStreamComplete = useCallback(
+    (result: {
+      mermaidCode: string | null;
+      reason: string | null;
+      thinking: string;
+    }) => {
+      if (result.mermaidCode) {
+        console.log("AI Stream Response:", {
+          reasoning: result.reason,
+          thinking: result.thinking,
+        });
+        setEditingMermaidCode(result.mermaidCode);
         setEditingStrokes([]); // 変換後はストロークをクリア
         setCanvasKey((prev) => prev + 1);
-        setLastAiResult(data.reasoning || "変換が完了しました");
-        setAiThinking(data.thinking || null);
+        setLastAiResult(result.reason || "変換が完了しました");
 
         // DBにも保存
         if (selectedProject) {
           saveDiagramWithStrokes.mutate({
             projectId: selectedProject.id,
-            mermaidCode: data.updatedMermaidCode,
+            mermaidCode: result.mermaidCode,
             strokes: [],
             updateType: "handwriting",
-            reason: data.reasoning || "手書きストロークからAIで変換",
+            reason: result.reason || "手書きストロークからAIで変換",
           });
         }
       } else {
-        setLastAiResult("ストロークを解釈できませんでした。もう一度お試しください。");
+        setLastAiResult(
+          "ストロークを解釈できませんでした。もう一度お試しください。",
+        );
       }
     },
-    onError: (error) => {
-      setLastAiResult(`エラー: ${error.message}`);
-    },
-  });
+    [selectedProject, saveDiagramWithStrokes],
+  );
 
   // Mermaidエラー修正API
   const fixMermaidError = trpc.ai.fixMermaidError.useMutation({
@@ -103,8 +116,9 @@ export default function Home() {
       if (data.wasFixed && data.updatedMermaidCode) {
         setEditingMermaidCode(data.updatedMermaidCode);
         setCanvasKey((prev) => prev + 1);
-        setLastAiResult(`🔧 エラーを修正しました（${data.retryCount}回目）: ${data.reasoning}`);
-        setAiThinking(data.thinking || null);
+        setLastAiResult(
+          `🔧 エラーを修正しました（${data.retryCount}回目）: ${data.reasoning}`,
+        );
         setErrorRetryCount(0); // リセット
 
         // DBにも保存
@@ -118,7 +132,9 @@ export default function Home() {
           });
         }
       } else {
-        setLastAiResult("エラーを修正できませんでした。コードを手動で確認してください。");
+        setLastAiResult(
+          "エラーを修正できませんでした。コードを手動で確認してください。",
+        );
         setErrorRetryCount(0);
       }
     },
@@ -132,7 +148,8 @@ export default function Home() {
   const projectData = getProjectWithStrokes.data;
   useEffect(() => {
     if (projectData) {
-      const code = projectData.latestVersion?.mermaidCode ?? "flowchart TD\n    A[Start]";
+      const code =
+        projectData.latestVersion?.mermaidCode ?? "flowchart TD\n    A[Start]";
       const strokes = (projectData.strokes ?? []) as Stroke[];
       setEditingMermaidCode(code);
       setEditingStrokes(strokes);
@@ -165,7 +182,7 @@ export default function Home() {
       setCanvasKey((prev) => prev + 1);
       setLastAiResult(null);
     },
-    []
+    [],
   );
 
   /**
@@ -196,27 +213,33 @@ export default function Home() {
       setEditingMermaidCode(data.mermaidCode);
       setEditingStrokes(data.strokes);
     },
-    [selectedProject, saveDiagramWithStrokes]
+    [selectedProject, saveDiagramWithStrokes],
   );
 
   /**
-   * AIで変換ボタンのハンドラ
+   * AIで変換ボタンのハンドラ（ストリーミング対応）
    */
   const handleConvertWithAI = useCallback(
     (data: ConvertWithAIData) => {
       setLastAiResult(null);
-      setAiThinking(null);
       setErrorRetryCount(0);
-      interpretStrokes.mutate({
-        strokes: data.strokes,
-        currentMermaidCode: data.mermaidCode,
-        nodePositions: data.nodePositions,
-        canvasImage: data.canvasImage,
-        hint: data.hint,
-        diagramType: selectedProject?.diagramType ?? "flowchart",
-      });
+      // 思考パネルを自動的に開く
+      setShowThinkingPanel(true);
+
+      // ストリーミングAPIを呼び出し
+      aiStream.interpretStrokes(
+        {
+          strokes: data.strokes,
+          currentMermaidCode: data.mermaidCode,
+          nodePositions: data.nodePositions,
+          canvasImage: data.canvasImage,
+          hint: data.hint,
+          diagramType: selectedProject?.diagramType ?? "flowchart",
+        },
+        handleStreamComplete,
+      );
     },
-    [interpretStrokes, selectedProject?.diagramType]
+    [aiStream, selectedProject?.diagramType, handleStreamComplete],
   );
 
   /**
@@ -226,13 +249,17 @@ export default function Home() {
     (error: string, brokenCode: string) => {
       // リトライ回数をチェック
       if (errorRetryCount >= MAX_RETRY_COUNT) {
-        setLastAiResult(`❌ 自動修正に${MAX_RETRY_COUNT}回失敗しました。コードを手動で確認してください。\nエラー: ${error}`);
+        setLastAiResult(
+          `❌ 自動修正に${MAX_RETRY_COUNT}回失敗しました。コードを手動で確認してください。\nエラー: ${error}`,
+        );
         setErrorRetryCount(0);
         return;
       }
 
       // 自動修正を実行
-      setLastAiResult(`⚠️ 構文エラーを検出: ${error}\n🔧 自動修正中... (${errorRetryCount + 1}/${MAX_RETRY_COUNT}回目)`);
+      setLastAiResult(
+        `⚠️ 構文エラーを検出: ${error}\n🔧 自動修正中... (${errorRetryCount + 1}/${MAX_RETRY_COUNT}回目)`,
+      );
       setErrorRetryCount((prev) => prev + 1);
 
       fixMermaidError.mutate({
@@ -241,12 +268,12 @@ export default function Home() {
         retryCount: errorRetryCount,
       });
     },
-    [errorRetryCount, fixMermaidError]
+    [errorRetryCount, fixMermaidError],
   );
 
   return (
     <div className="h-screen flex overflow-hidden bg-slate-50">
-      {/* サイドバー */}
+      {/* 左サイドバー */}
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
         {/* ロゴ */}
         <div className="p-4 border-b border-gray-100">
@@ -256,7 +283,9 @@ export default function Home() {
               Inkmaid
             </h1>
           </div>
-          <p className="text-xs text-gray-400 mt-1">手書きからダイアグラムを生成</p>
+          <p className="text-xs text-gray-400 mt-1">
+            手書きからダイアグラムを生成
+          </p>
         </div>
 
         {/* 新規プロジェクト作成 */}
@@ -273,7 +302,9 @@ export default function Home() {
             {/* 図の種類選択 */}
             <select
               value={selectedDiagramType}
-              onChange={(e) => setSelectedDiagramType(e.target.value as DiagramType)}
+              onChange={(e) =>
+                setSelectedDiagramType(e.target.value as DiagramType)
+              }
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-all bg-white"
             >
               {DIAGRAM_TYPES.map((type) => (
@@ -306,13 +337,16 @@ export default function Home() {
           )}
           <ul className="space-y-1">
             {projects?.map((project) => {
-              const diagramType = (project.diagramType || "flowchart") as DiagramType;
+              const diagramType = (project.diagramType ||
+                "flowchart") as DiagramType;
               const typeInfo = DIAGRAM_TYPE_INFO[diagramType];
               return (
                 <li
                   key={project.id}
                   onClick={() => handleSelectProject(project)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSelectProject(project)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && handleSelectProject(project)
+                  }
                   className={`px-3 py-2 rounded-lg cursor-pointer transition-all ${
                     selectedProject?.id === project.id
                       ? "bg-violet-100 text-violet-700"
@@ -330,7 +364,11 @@ export default function Home() {
                       <div className="text-xs text-gray-400 flex items-center gap-1">
                         <span>{typeInfo.label}</span>
                         <span>·</span>
-                        <span>{new Date(project.createdAt).toLocaleDateString("ja-JP")}</span>
+                        <span>
+                          {new Date(project.createdAt).toLocaleDateString(
+                            "ja-JP",
+                          )}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -367,10 +405,28 @@ export default function Home() {
                 </span>
               </div>
             ) : (
-              <h2 className="text-sm font-semibold text-gray-800">プロジェクトを選択</h2>
+              <h2 className="text-sm font-semibold text-gray-800">
+                プロジェクトを選択
+              </h2>
             )}
           </div>
 
+          {/* AI思考パネルトグル */}
+          <button
+            type="button"
+            onClick={() => setShowThinkingPanel(!showThinkingPanel)}
+            className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1.5 transition-all ${
+              showThinkingPanel
+                ? "bg-violet-100 text-violet-700"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            <span>🧠</span>
+            AI思考ログ
+            {aiStream.isProcessing && (
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            )}
+          </button>
         </header>
 
         {/* コンテンツエリア */}
@@ -385,55 +441,38 @@ export default function Home() {
               </div>
             ) : (
               <div className="flex-1 p-4 overflow-auto">
-                {/* AI変換結果のフィードバック */}
-                {(lastAiResult || aiThinking) && (
+                {/* AI変換結果のフィードバック（コンパクト版） */}
+                {lastAiResult && (
                   <div className="mb-4 bg-violet-50 rounded-xl border border-violet-200 p-4">
                     <div className="flex items-start gap-3">
                       <span className="text-lg">🤖</span>
                       <div className="flex-1">
-                        <p className="text-sm text-violet-800">{lastAiResult || "変換完了"}</p>
+                        <p className="text-sm text-violet-800">
+                          {lastAiResult}
+                        </p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => { setLastAiResult(null); setAiThinking(null); }}
+                        onClick={() => setLastAiResult(null)}
                         className="text-violet-400 hover:text-violet-600 text-lg"
                       >
                         ×
                       </button>
                     </div>
-                    
-                    {/* 思考過程の表示 */}
-                    {aiThinking && (
-                      <div className="mt-3 pt-3 border-t border-violet-200">
-                        <button
-                          type="button"
-                          onClick={() => setShowThinking(!showThinking)}
-                          className="text-xs text-violet-600 hover:text-violet-800 flex items-center gap-1"
-                        >
-                          <span>{showThinking ? "▼" : "▶"}</span>
-                          🧠 思考過程を{showThinking ? "隠す" : "表示"}
-                        </button>
-                        {showThinking && (
-                          <pre className="mt-2 p-3 bg-violet-100 rounded-lg text-xs text-violet-900 overflow-auto max-h-60 whitespace-pre-wrap">
-                            {aiThinking}
-                          </pre>
-                        )}
-                      </div>
-                    )}
                   </div>
                 )}
 
                 {/* メインキャンバス */}
                 <DynamicDiagramCanvas
                   key={`${selectedProject.id}-${canvasKey}`}
-                  width={1100}
+                  width={showThinkingPanel ? 900 : 1100}
                   height={600}
                   strokeColor="#7c3aed"
                   strokeWidth={3}
                   initialMermaidCode={editingMermaidCode}
                   initialStrokes={editingStrokes}
                   isSaving={saveDiagramWithStrokes.isPending}
-                  isConverting={interpretStrokes.isPending}
+                  isConverting={aiStream.isProcessing}
                   isFixingError={fixMermaidError.isPending}
                   onSave={handleSave}
                   onConvertWithAI={handleConvertWithAI}
@@ -442,11 +481,28 @@ export default function Home() {
 
                 {/* デバッグ情報 */}
                 <details className="mt-4 bg-gray-100 rounded-lg p-3 text-xs">
-                  <summary className="cursor-pointer text-gray-600 font-medium">🐛 デバッグ情報</summary>
+                  <summary className="cursor-pointer text-gray-600 font-medium">
+                    🐛 デバッグ情報
+                  </summary>
                   <div className="mt-2 space-y-2">
-                    <div><strong>lastAiResult:</strong> {lastAiResult || "(empty)"}</div>
-                    <div><strong>aiThinking:</strong> {aiThinking ? `${aiThinking.substring(0, 100)}...` : "(empty)"}</div>
-                    <div><strong>errorRetryCount:</strong> {errorRetryCount}</div>
+                    <div>
+                      <strong>lastAiResult:</strong> {lastAiResult || "(empty)"}
+                    </div>
+                    <div>
+                      <strong>aiThinking:</strong>{" "}
+                      {aiStream.thinkingText
+                        ? `${aiStream.thinkingText.substring(0, 100)}...`
+                        : "(empty)"}
+                    </div>
+                    <div>
+                      <strong>aiOutput:</strong>{" "}
+                      {aiStream.outputText
+                        ? `${aiStream.outputText.substring(0, 100)}...`
+                        : "(empty)"}
+                    </div>
+                    <div>
+                      <strong>errorRetryCount:</strong> {errorRetryCount}
+                    </div>
                   </div>
                 </details>
               </div>
@@ -459,20 +515,27 @@ export default function Home() {
                   手書きでダイアグラムを作成
                 </h3>
                 <p className="text-gray-500 text-sm mb-6">
-                  左のサイドバーからプロジェクトを選択するか、<br />
+                  左のサイドバーからプロジェクトを選択するか、
+                  <br />
                   新規作成して手書きを始めましょう
                 </p>
                 <div className="flex justify-center gap-6 text-xs text-gray-400">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-6 h-6 bg-violet-100 rounded flex items-center justify-center">□</span>
+                    <span className="w-6 h-6 bg-violet-100 rounded flex items-center justify-center">
+                      □
+                    </span>
                     四角 → ノード
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-6 h-6 bg-violet-100 rounded flex items-center justify-center">◇</span>
+                    <span className="w-6 h-6 bg-violet-100 rounded flex items-center justify-center">
+                      ◇
+                    </span>
                     ひし形 → 分岐
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-6 h-6 bg-violet-100 rounded flex items-center justify-center">→</span>
+                    <span className="w-6 h-6 bg-violet-100 rounded flex items-center justify-center">
+                      →
+                    </span>
                     線 → 接続
                   </div>
                 </div>
@@ -481,6 +544,16 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      {/* 右サイドバー: AI思考ログパネル */}
+      <AIThinkingPanel
+        isOpen={showThinkingPanel}
+        isProcessing={aiStream.isProcessing}
+        thinkingText={aiStream.thinkingText}
+        resultReason={lastAiResult}
+        errorMessage={aiStream.errorMessage}
+        onClose={() => setShowThinkingPanel(false)}
+      />
     </div>
   );
 }

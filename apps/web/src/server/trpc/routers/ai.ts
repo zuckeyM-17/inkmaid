@@ -1,10 +1,10 @@
-import { z } from "zod";
-import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
-import { publicProcedure, router } from "../init";
+import { generateText } from "ai";
+import { z } from "zod";
 import { DIAGRAM_TYPES, type DiagramType } from "../../db/schema";
+import { publicProcedure, router } from "../init";
 
 /**
  * 現在のAIプロバイダーを取得
@@ -230,9 +230,16 @@ const SYSTEM_PROMPT = `あなたはMermaidダイアグラムの編集を支援�
 /**
  * AIの応答からMermaidコードと理由を抽出
  */
-function parseAiResponse(text: string): { mermaidCode: string | null; reason: string | null } {
-  const mermaidMatch = text.match(/---MERMAID_START---\s*([\s\S]*?)\s*---MERMAID_END---/);
-  const reasonMatch = text.match(/---REASON_START---\s*([\s\S]*?)\s*---REASON_END---/);
+function parseAiResponse(text: string): {
+  mermaidCode: string | null;
+  reason: string | null;
+} {
+  const mermaidMatch = text.match(
+    /---MERMAID_START---\s*([\s\S]*?)\s*---MERMAID_END---/,
+  );
+  const reasonMatch = text.match(
+    /---REASON_START---\s*([\s\S]*?)\s*---REASON_END---/,
+  );
 
   return {
     mermaidCode: mermaidMatch ? mermaidMatch[1].trim() : null,
@@ -260,10 +267,10 @@ export const aiRouter = router({
             z.object({
               role: z.enum(["user", "assistant"]),
               content: z.string(),
-            })
+            }),
           )
           .optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const { message, currentMermaidCode, conversationHistory = [] } = input;
@@ -325,10 +332,10 @@ ${currentMermaidCode}
             z.object({
               role: z.enum(["user", "assistant"]),
               content: z.string(),
-            })
+            }),
           )
           .optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const { message, conversationHistory = [] } = input;
@@ -361,33 +368,42 @@ ${currentMermaidCode}
             points: z.array(z.number()),
             color: z.string(),
             strokeWidth: z.number(),
-          })
+          }),
         ),
         /** 現在のMermaidコード */
         currentMermaidCode: z.string(),
         /** 現在のMermaidノードの位置情報 */
-        nodePositions: z.array(
-          z.object({
-            id: z.string(),
-            label: z.string(),
-            x: z.number(),
-            y: z.number(),
-            width: z.number(),
-            height: z.number(),
-            centerX: z.number(),
-            centerY: z.number(),
-          })
-        ).optional(),
+        nodePositions: z
+          .array(
+            z.object({
+              id: z.string(),
+              label: z.string(),
+              x: z.number(),
+              y: z.number(),
+              width: z.number(),
+              height: z.number(),
+              centerX: z.number(),
+              centerY: z.number(),
+            }),
+          )
+          .optional(),
         /** キャンバス画像（Base64 PNG） */
         canvasImage: z.string().optional(),
         /** 補助的なテキスト指示（オプション） */
         hint: z.string().optional(),
         /** 図の種類 */
         diagramType: z.enum(DIAGRAM_TYPES).optional().default("flowchart"),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
-      const { strokes, currentMermaidCode, nodePositions, canvasImage, hint, diagramType } = input;
+      const {
+        strokes,
+        currentMermaidCode,
+        nodePositions,
+        canvasImage,
+        hint,
+        diagramType,
+      } = input;
 
       if (strokes.length === 0) {
         return {
@@ -400,41 +416,62 @@ ${currentMermaidCode}
 
       // ストロークのバウンディングボックスを計算するヘルパー
       const getStrokeBounds = (points: number[]) => {
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        let minX = Number.POSITIVE_INFINITY,
+          maxX = Number.NEGATIVE_INFINITY,
+          minY = Number.POSITIVE_INFINITY,
+          maxY = Number.NEGATIVE_INFINITY;
         for (let i = 0; i < points.length; i += 2) {
           minX = Math.min(minX, points[i]);
           maxX = Math.max(maxX, points[i]);
           minY = Math.min(minY, points[i + 1]);
           maxY = Math.max(maxY, points[i + 1]);
         }
-        return { minX, maxX, minY, maxY, centerX: (minX + maxX) / 2, centerY: (minY + maxY) / 2 };
+        return {
+          minX,
+          maxX,
+          minY,
+          maxY,
+          centerX: (minX + maxX) / 2,
+          centerY: (minY + maxY) / 2,
+        };
       };
 
       // 2本のストロークがX印（バツ）を形成しているか判定
-      const detectXMark = (): { isXMark: boolean; centerX: number; centerY: number; targetNodeId: string | null } | null => {
+      const detectXMark = (): {
+        isXMark: boolean;
+        centerX: number;
+        centerY: number;
+        targetNodeId: string | null;
+      } | null => {
         if (strokes.length < 2) return null;
 
         // 最後の2本のストロークをチェック
         const stroke1 = strokes[strokes.length - 2];
         const stroke2 = strokes[strokes.length - 1];
-        
+
         const p1 = stroke1.points;
         const p2 = stroke2.points;
-        
+
         const bounds1 = getStrokeBounds(p1);
         const bounds2 = getStrokeBounds(p2);
-        
+
         // 両ストロークが近い位置にあるか（中心が近い）
         const centerDist = Math.sqrt(
-          (bounds1.centerX - bounds2.centerX) ** 2 + 
-          (bounds1.centerY - bounds2.centerY) ** 2
+          (bounds1.centerX - bounds2.centerX) ** 2 +
+            (bounds1.centerY - bounds2.centerY) ** 2,
         );
-        
+
         // 両ストロークのサイズが似ているか
-        const size1 = Math.max(bounds1.maxX - bounds1.minX, bounds1.maxY - bounds1.minY);
-        const size2 = Math.max(bounds2.maxX - bounds2.minX, bounds2.maxY - bounds2.minY);
+        const size1 = Math.max(
+          bounds1.maxX - bounds1.minX,
+          bounds1.maxY - bounds1.minY,
+        );
+        const size2 = Math.max(
+          bounds2.maxX - bounds2.minX,
+          bounds2.maxY - bounds2.minY,
+        );
         const sizeDiff = Math.abs(size1 - size2) / Math.max(size1, size2);
-        
+
         // X印の条件: 中心が近く（50px以内）、サイズが似ている（差が50%以内）
         if (centerDist < 80 && sizeDiff < 0.5) {
           // 線が交差する形状かチェック（対角線的な動き）
@@ -442,35 +479,46 @@ ${currentMermaidCode}
           const end1 = { x: p1[p1.length - 2], y: p1[p1.length - 1] };
           const start2 = { x: p2[0], y: p2[1] };
           const end2 = { x: p2[p2.length - 2], y: p2[p2.length - 1] };
-          
+
           // 両方のストロークが斜め線か（開始点と終了点のX,Yが両方変化）
-          const isDiagonal1 = Math.abs(end1.x - start1.x) > 20 && Math.abs(end1.y - start1.y) > 20;
-          const isDiagonal2 = Math.abs(end2.x - start2.x) > 20 && Math.abs(end2.y - start2.y) > 20;
-          
+          const isDiagonal1 =
+            Math.abs(end1.x - start1.x) > 20 &&
+            Math.abs(end1.y - start1.y) > 20;
+          const isDiagonal2 =
+            Math.abs(end2.x - start2.x) > 20 &&
+            Math.abs(end2.y - start2.y) > 20;
+
           if (isDiagonal1 && isDiagonal2) {
             // X印の中心座標
             const xCenter = (bounds1.centerX + bounds2.centerX) / 2;
             const yCenter = (bounds1.centerY + bounds2.centerY) / 2;
-            
+
             // どのノードの上にあるか判定
             let targetNodeId: string | null = null;
             if (nodePositions && nodePositions.length > 0) {
               for (const node of nodePositions) {
                 // X印の中心がノードの範囲内にあるか
                 if (
-                  xCenter >= node.x - 20 && xCenter <= node.x + node.width + 20 &&
-                  yCenter >= node.y - 20 && yCenter <= node.y + node.height + 20
+                  xCenter >= node.x - 20 &&
+                  xCenter <= node.x + node.width + 20 &&
+                  yCenter >= node.y - 20 &&
+                  yCenter <= node.y + node.height + 20
                 ) {
                   targetNodeId = node.id;
                   break;
                 }
               }
             }
-            
-            return { isXMark: true, centerX: xCenter, centerY: yCenter, targetNodeId };
+
+            return {
+              isXMark: true,
+              centerX: xCenter,
+              centerY: yCenter,
+              targetNodeId,
+            };
           }
         }
-        
+
         return null;
       };
 
@@ -478,40 +526,48 @@ ${currentMermaidCode}
       const xMarkDetection = detectXMark();
 
       // ストロークデータを解析用のテキストに変換
-      const strokeDescriptions = strokes.map((stroke, index) => {
-        const points = stroke.points;
-        const numPoints = points.length / 2;
-        const startX = points[0];
-        const startY = points[1];
-        const endX = points[points.length - 2];
-        const endY = points[points.length - 1];
-        
-        // バウンディングボックスを計算
-        const { minX, maxX, minY, maxY, centerX, centerY } = getStrokeBounds(points);
-        const width = maxX - minX;
-        const height = maxY - minY;
-        
-        // 閉じた図形かどうか
-        const isClosed = Math.sqrt((startX - endX) ** 2 + (startY - endY) ** 2) < 50;
-        
-        // アスペクト比
-        const aspectRatio = width / (height || 1);
-        
-        return `ストローク${index + 1}: 
+      const strokeDescriptions = strokes
+        .map((stroke, index) => {
+          const points = stroke.points;
+          const numPoints = points.length / 2;
+          const startX = points[0];
+          const startY = points[1];
+          const endX = points[points.length - 2];
+          const endY = points[points.length - 1];
+
+          // バウンディングボックスを計算
+          const { minX, maxX, minY, maxY, centerX, centerY } =
+            getStrokeBounds(points);
+          const width = maxX - minX;
+          const height = maxY - minY;
+
+          // 閉じた図形かどうか
+          const isClosed =
+            Math.sqrt((startX - endX) ** 2 + (startY - endY) ** 2) < 50;
+
+          // アスペクト比
+          const aspectRatio = width / (height || 1);
+
+          return `ストローク${index + 1}: 
   - 点数: ${numPoints}
   - 範囲: (${Math.round(minX)}, ${Math.round(minY)}) ～ (${Math.round(maxX)}, ${Math.round(maxY)})
   - 中心: (${Math.round(centerX)}, ${Math.round(centerY)})
   - サイズ: ${Math.round(width)} x ${Math.round(height)}
   - 閉じた形状: ${isClosed ? "はい" : "いいえ"}
   - アスペクト比: ${aspectRatio.toFixed(2)}`;
-      }).join("\n\n");
+        })
+        .join("\n\n");
 
       // ノード位置情報をテキストに変換
-      const nodePositionDescriptions = nodePositions && nodePositions.length > 0
-        ? nodePositions.map((node) => 
-            `- ノード「${node.label}」(ID: ${node.id}): 位置=(${node.x}, ${node.y}), サイズ=${node.width}x${node.height}, 中心=(${node.centerX}, ${node.centerY})`
-          ).join("\n")
-        : "（ノード位置情報なし）";
+      const nodePositionDescriptions =
+        nodePositions && nodePositions.length > 0
+          ? nodePositions
+              .map(
+                (node) =>
+                  `- ノード「${node.label}」(ID: ${node.id}): 位置=(${node.x}, ${node.y}), サイズ=${node.width}x${node.height}, 中心=(${node.centerX}, ${node.centerY})`,
+              )
+              .join("\n")
+          : "（ノード位置情報なし）";
 
       const userMessage = `現在のMermaidコード:
 \`\`\`mermaid
@@ -524,12 +580,16 @@ ${nodePositionDescriptions}
 ## 手書きストロークデータ（${strokes.length}個のストローク）:
 ${strokeDescriptions}
 
-${xMarkDetection ? `## ⚠️ X印（バツ）を検出しました！
+${
+  xMarkDetection
+    ? `## ⚠️ X印（バツ）を検出しました！
 - X印の中心座標: (${Math.round(xMarkDetection.centerX)}, ${Math.round(xMarkDetection.centerY)})
 - 対象ノード: ${xMarkDetection.targetNodeId ? `「${xMarkDetection.targetNodeId}」を削除してください` : "特定できませんでした（位置から判断してください）"}
 
 **重要**: X印が描かれたノードとその接続を削除してください。
-` : ""}
+`
+    : ""
+}
 ${hint ? `## ユーザーからの補足: ${hint}` : ""}
 
 ## 解釈のヒント
@@ -541,9 +601,11 @@ ${hint ? `## ユーザーからの補足: ${hint}` : ""}
 これらのストロークを解釈して、Mermaidダイアグラムを更新してください。`;
 
       // マルチモーダルメッセージを構築
-      type MessageContent = { type: "text"; text: string } | { type: "image"; image: string };
+      type MessageContent =
+        | { type: "text"; text: string }
+        | { type: "image"; image: string };
       const messageContent: MessageContent[] = [];
-      
+
       // 画像がある場合は先に追加（視覚情報を優先）
       if (canvasImage) {
         messageContent.push({
@@ -551,11 +613,11 @@ ${hint ? `## ユーザーからの補足: ${hint}` : ""}
           image: canvasImage, // Base64 data URL
         });
       }
-      
+
       // テキストメッセージを追加
       messageContent.push({
         type: "text",
-        text: canvasImage 
+        text: canvasImage
           ? `上の画像は現在のダイアグラム（Mermaid図）に手書きストローク（紫色の線）を重ねたものです。
 
 手書きの内容を解釈して、ダイアグラムを更新してください。
@@ -604,7 +666,7 @@ ${userMessage}`
         errorMessage: z.string(),
         /** リトライ回数 */
         retryCount: z.number().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const { brokenCode, errorMessage, retryCount = 0 } = input;
@@ -637,7 +699,8 @@ ${brokenCode}
 
       const result = await generateText({
         model: getModel(),
-        system: "あなたはMermaidコードのエラーを修正する専門家です。必ず有効なMermaid構文を出力してください。",
+        system:
+          "あなたはMermaidコードのエラーを修正する専門家です。必ず有効なMermaid構文を出力してください。",
         messages: [{ role: "user" as const, content: fixPrompt }],
         providerOptions: getProviderOptions(),
       });

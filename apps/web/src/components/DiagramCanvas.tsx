@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import DynamicHandwritingCanvas from "./DynamicHandwritingCanvas";
 import DynamicMermaidPreview from "./DynamicMermaidPreview";
 import type { Stroke } from "./HandwritingCanvas";
@@ -83,7 +83,7 @@ export default function DiagramCanvas({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [hint, setHint] = useState("");
   const [showHintInput, setShowHintInput] = useState(false);
-  
+
   // refs
   const mermaidContainerRef = useRef<HTMLDivElement>(null);
 
@@ -150,22 +150,23 @@ export default function DiagramCanvas({
 
       // SVGをBase64 Data URLに変換（Tainted Canvas問題を回避）
       const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
-      
+
       // SVGにxmlns属性を確保
       if (!svgClone.getAttribute("xmlns")) {
         svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
       }
-      
+
       const svgData = new XMLSerializer().serializeToString(svgClone);
       const svgBase64 = btoa(unescape(encodeURIComponent(svgData)));
       const svgDataUrl = `data:image/svg+xml;base64,${svgBase64}`;
-      
+
       await new Promise<void>((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
           // SVGをキャンバスの中央に配置
           const svgRect = svgElement.getBoundingClientRect();
-          const containerRect = mermaidContainerRef.current?.getBoundingClientRect();
+          const containerRect =
+            mermaidContainerRef.current?.getBoundingClientRect();
           if (containerRect) {
             const offsetX = svgRect.left - containerRect.left;
             const offsetY = svgRect.top - containerRect.top;
@@ -186,12 +187,12 @@ export default function DiagramCanvas({
       if (strokes.length > 0) {
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        
+
         for (const stroke of strokes) {
           ctx.strokeStyle = stroke.color;
           ctx.lineWidth = stroke.strokeWidth;
           ctx.beginPath();
-          
+
           const points = stroke.points;
           if (points.length >= 2) {
             ctx.moveTo(points[0], points[1]);
@@ -216,17 +217,24 @@ export default function DiagramCanvas({
   const handleConvertWithAI = useCallback(async () => {
     // キャンバス画像を生成
     const canvasImage = await generateCanvasImage();
-    
-    onConvertWithAI?.({ 
-      mermaidCode, 
-      strokes, 
-      nodePositions, 
+
+    onConvertWithAI?.({
+      mermaidCode,
+      strokes,
+      nodePositions,
       canvasImage: canvasImage || undefined,
-      hint: hint || undefined 
+      hint: hint || undefined,
     });
     setShowHintInput(false);
     setHint("");
-  }, [mermaidCode, strokes, nodePositions, hint, onConvertWithAI, generateCanvasImage]);
+  }, [
+    mermaidCode,
+    strokes,
+    nodePositions,
+    hint,
+    onConvertWithAI,
+    generateCanvasImage,
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -245,7 +253,13 @@ export default function DiagramCanvas({
           {/* AIで変換ボタン */}
           <button
             type="button"
-            onClick={() => strokes.length > 0 ? (showHintInput ? handleConvertWithAI() : setShowHintInput(true)) : undefined}
+            onClick={() =>
+              strokes.length > 0
+                ? showHintInput
+                  ? handleConvertWithAI()
+                  : setShowHintInput(true)
+                : undefined
+            }
             disabled={isConverting || strokes.length === 0}
             className="px-4 py-2 text-sm bg-linear-to-r from-violet-600 to-fuchsia-600 text-white font-medium rounded-lg hover:from-violet-700 hover:to-fuchsia-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 shadow-md shadow-violet-200"
           >
@@ -255,9 +269,7 @@ export default function DiagramCanvas({
                 変換中...
               </>
             ) : (
-              <>
-                🪄 AIで変換
-              </>
+              <>🪄 AIで変換</>
             )}
           </button>
 
@@ -275,9 +287,7 @@ export default function DiagramCanvas({
                   保存中...
                 </>
               ) : (
-                <>
-                  💾 保存
-                </>
+                <>💾 保存</>
               )}
             </button>
           )}
@@ -310,7 +320,10 @@ export default function DiagramCanvas({
           </button>
           <button
             type="button"
-            onClick={() => { setShowHintInput(false); setHint(""); }}
+            onClick={() => {
+              setShowHintInput(false);
+              setHint("");
+            }}
             className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
           >
             キャンセル
@@ -327,7 +340,10 @@ export default function DiagramCanvas({
         }}
       >
         {/* 下層: Mermaid SVG レイヤー */}
-        <div ref={mermaidContainerRef} className="absolute inset-0 pointer-events-none">
+        <div
+          ref={mermaidContainerRef}
+          className="absolute inset-0 pointer-events-none"
+        >
           <DynamicMermaidPreview
             code={mermaidCode}
             width={width}
@@ -352,12 +368,16 @@ export default function DiagramCanvas({
 
         {/* ストローク数インジケータ */}
         <div className="absolute bottom-3 left-3 z-20">
-          <div className={`px-3 py-1.5 text-xs rounded-full flex items-center gap-1.5 ${
-            strokes.length > 0 
-              ? "bg-violet-100 text-violet-700" 
-              : "bg-gray-100 text-gray-500"
-          }`}>
-            <span className={`w-2 h-2 rounded-full ${strokes.length > 0 ? "bg-violet-500" : "bg-gray-400"}`} />
+          <div
+            className={`px-3 py-1.5 text-xs rounded-full flex items-center gap-1.5 ${
+              strokes.length > 0
+                ? "bg-violet-100 text-violet-700"
+                : "bg-gray-100 text-gray-500"
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${strokes.length > 0 ? "bg-violet-500" : "bg-gray-400"}`}
+            />
             {strokes.length} ストローク
           </div>
         </div>
@@ -387,7 +407,9 @@ export default function DiagramCanvas({
             <div className="text-center">
               <div className="w-12 h-12 border-4 border-violet-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
               <p className="text-violet-700 font-medium">AIが解析中...</p>
-              <p className="text-xs text-gray-500 mt-1">手書きをMermaidに変換しています</p>
+              <p className="text-xs text-gray-500 mt-1">
+                手書きをMermaidに変換しています
+              </p>
             </div>
           </div>
         )}
@@ -397,8 +419,12 @@ export default function DiagramCanvas({
           <div className="absolute inset-0 bg-amber-50/90 backdrop-blur-sm flex items-center justify-center z-30">
             <div className="text-center">
               <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-amber-700 font-medium">構文エラーを修正中...</p>
-              <p className="text-xs text-gray-500 mt-1">AIが自動でコードを修正しています</p>
+              <p className="text-amber-700 font-medium">
+                構文エラーを修正中...
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                AIが自動でコードを修正しています
+              </p>
             </div>
           </div>
         )}
@@ -409,7 +435,9 @@ export default function DiagramCanvas({
         <summary className="p-4 text-sm cursor-pointer hover:bg-gray-800 transition-colors">
           <span className="text-gray-300 font-medium flex items-center gap-2">
             <span>📝</span> Mermaidコード
-            <span className="text-xs text-gray-500 ml-2">（クリックで展開）</span>
+            <span className="text-xs text-gray-500 ml-2">
+              （クリックで展開）
+            </span>
           </span>
         </summary>
         <div className="p-4 pt-0">

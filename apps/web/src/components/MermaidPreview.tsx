@@ -1,33 +1,33 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import mermaid from "mermaid";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * MermaidのSVGからノードの位置情報を抽出する
  */
 function extractNodePositions(
   svgElement: SVGSVGElement,
-  container: HTMLElement
+  container: HTMLElement,
 ): NodePosition[] {
   const positions: NodePosition[] = [];
-  
+
   // コンテナの位置を取得（相対座標計算用）
   const containerRect = container.getBoundingClientRect();
   const svgRect = svgElement.getBoundingClientRect();
-  
+
   // SVGのviewBoxを考慮したスケール計算
   const viewBox = svgElement.viewBox.baseVal;
   const scaleX = svgRect.width / (viewBox.width || svgRect.width);
   const scaleY = svgRect.height / (viewBox.height || svgRect.height);
-  
+
   // SVGのオフセット（コンテナ内でのSVGの位置）
   const svgOffsetX = svgRect.left - containerRect.left;
   const svgOffsetY = svgRect.top - containerRect.top;
-  
+
   // .node クラスを持つ要素（フローチャートのノード）を取得
   const nodeElements = svgElement.querySelectorAll(".node");
-  
+
   for (const node of nodeElements) {
     try {
       // ノードのIDを取得（flowchart-nodeId-xxx 形式）
@@ -35,20 +35,22 @@ function extractNodePositions(
       // flowchart-A-0 → A のように抽出
       const idMatch = fullId.match(/flowchart-([^-]+)-/);
       const nodeId = idMatch ? idMatch[1] : fullId;
-      
+
       // ラベルテキストを取得
-      const labelElement = node.querySelector(".nodeLabel, text, foreignObject");
+      const labelElement = node.querySelector(
+        ".nodeLabel, text, foreignObject",
+      );
       const label = labelElement?.textContent?.trim() || nodeId;
-      
+
       // ノードのbounding boxを取得
       const nodeRect = node.getBoundingClientRect();
-      
+
       // コンテナ内の相対座標に変換
       const x = nodeRect.left - containerRect.left;
       const y = nodeRect.top - containerRect.top;
       const nodeWidth = nodeRect.width;
       const nodeHeight = nodeRect.height;
-      
+
       positions.push({
         id: nodeId,
         label,
@@ -63,7 +65,7 @@ function extractNodePositions(
       console.warn("ノード位置の抽出に失敗:", err);
     }
   }
-  
+
   return positions;
 }
 
@@ -164,17 +166,21 @@ export default function MermaidPreview({
           if (svgElement) {
             svgElement.style.maxWidth = "100%";
             svgElement.style.maxHeight = "100%";
-            
+
             // ノードの位置情報を抽出
-            const nodePositions = extractNodePositions(svgElement, containerRef.current);
-            
+            const nodePositions = extractNodePositions(
+              svgElement,
+              containerRef.current,
+            );
+
             // レンダリング成功を通知（ノード位置情報付き）
             onRenderSuccess?.(nodePositions);
           }
         }
       } catch (err) {
         console.error("Mermaid レンダリングエラー:", err);
-        const errorMsg = err instanceof Error ? err.message : "レンダリングに失敗しました";
+        const errorMsg =
+          err instanceof Error ? err.message : "レンダリングに失敗しました";
         setError(errorMsg);
         onParseError?.(errorMsg, code);
       }
@@ -225,4 +231,3 @@ export default function MermaidPreview({
     </div>
   );
 }
-

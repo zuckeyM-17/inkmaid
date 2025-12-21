@@ -1,8 +1,15 @@
 "use client";
 
-import { useCallback, useRef, useState, useEffect, useImperativeHandle, forwardRef } from "react";
-import { Stage, Layer, Line } from "react-konva";
 import type Konva from "konva";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
+import { Layer, Line, Stage } from "react-konva";
 
 /**
  * ストロークデータの型定義
@@ -54,35 +61,39 @@ type HandwritingCanvasProps = {
  * 手書き入力用のCanvasコンポーネント
  * Konva.jsを使用してスムーズな手書き体験を提供
  */
-const HandwritingCanvas = forwardRef<HandwritingCanvasRef, HandwritingCanvasProps>(
-  function HandwritingCanvas(
-    {
-      width,
-      height,
-      strokeColor = "#1a1a2e",
-      strokeWidth = 3,
-      initialStrokes = [],
-      onStrokeComplete,
-      onStrokesChange,
-    },
-    ref
-  ) {
-    // 描画中のストローク
-    const [currentStroke, setCurrentStroke] = useState<number[]>([]);
-    // 完了したストローク一覧
-    const [strokes, setStrokes] = useState<Stroke[]>(initialStrokes);
-    // 描画中フラグ
-    const isDrawing = useRef(false);
-    // Konvaステージへの参照
-    const stageRef = useRef<Konva.Stage>(null);
+const HandwritingCanvas = forwardRef<
+  HandwritingCanvasRef,
+  HandwritingCanvasProps
+>(function HandwritingCanvas(
+  {
+    width,
+    height,
+    strokeColor = "#1a1a2e",
+    strokeWidth = 3,
+    initialStrokes = [],
+    onStrokeComplete,
+    onStrokesChange,
+  },
+  ref,
+) {
+  // 描画中のストローク
+  const [currentStroke, setCurrentStroke] = useState<number[]>([]);
+  // 完了したストローク一覧
+  const [strokes, setStrokes] = useState<Stroke[]>(initialStrokes);
+  // 描画中フラグ
+  const isDrawing = useRef(false);
+  // Konvaステージへの参照
+  const stageRef = useRef<Konva.Stage>(null);
 
-    // 初期ストロークが変更されたら反映
-    useEffect(() => {
-      setStrokes(initialStrokes);
-    }, [initialStrokes]);
+  // 初期ストロークが変更されたら反映
+  useEffect(() => {
+    setStrokes(initialStrokes);
+  }, [initialStrokes]);
 
-    // refからアクセスできるメソッドを公開
-    useImperativeHandle(ref, () => ({
+  // refからアクセスできるメソッドを公開
+  useImperativeHandle(
+    ref,
+    () => ({
       getStrokes: () => strokes,
       setStrokes: (newStrokes: Stroke[]) => {
         setStrokes(newStrokes);
@@ -97,12 +108,15 @@ const HandwritingCanvas = forwardRef<HandwritingCanvasRef, HandwritingCanvasProp
         if (!stageRef.current) return null;
         return stageRef.current.toDataURL({ pixelRatio: 1 });
       },
-    }), [strokes, onStrokesChange]);
+    }),
+    [strokes, onStrokesChange],
+  );
 
   /**
    * ユニークなIDを生成
    */
-  const generateId = () => `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const generateId = () =>
+    `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
   /**
    * 描画開始
@@ -116,7 +130,7 @@ const HandwritingCanvas = forwardRef<HandwritingCanvasRef, HandwritingCanvasProp
         setCurrentStroke([pos.x, pos.y]);
       }
     },
-    []
+    [],
   );
 
   /**
@@ -132,7 +146,7 @@ const HandwritingCanvas = forwardRef<HandwritingCanvasRef, HandwritingCanvasProp
         setCurrentStroke((prev) => [...prev, pos.x, pos.y]);
       }
     },
-    []
+    [],
   );
 
   /**
@@ -159,7 +173,14 @@ const HandwritingCanvas = forwardRef<HandwritingCanvasRef, HandwritingCanvasProp
     }
 
     setCurrentStroke([]);
-  }, [currentStroke, strokeColor, strokeWidth, strokes, onStrokeComplete, onStrokesChange]);
+  }, [
+    currentStroke,
+    strokeColor,
+    strokeWidth,
+    strokes,
+    onStrokeComplete,
+    onStrokesChange,
+  ]);
 
   /**
    * 全ストロークをクリア
@@ -263,4 +284,3 @@ const HandwritingCanvas = forwardRef<HandwritingCanvasRef, HandwritingCanvasProp
 });
 
 export default HandwritingCanvas;
-
