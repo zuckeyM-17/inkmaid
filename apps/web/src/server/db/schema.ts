@@ -9,10 +9,77 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+/**
+ * サポートする図の種類
+ */
+export const DIAGRAM_TYPES = [
+  "flowchart",
+  "sequence",
+  "classDiagram",
+  "stateDiagram",
+  "erDiagram",
+] as const;
+
+export type DiagramType = (typeof DIAGRAM_TYPES)[number];
+
+/**
+ * 図の種類ごとの情報
+ */
+export const DIAGRAM_TYPE_INFO: Record<
+  DiagramType,
+  { label: string; icon: string; description: string }
+> = {
+  flowchart: {
+    label: "フローチャート",
+    icon: "🔀",
+    description: "処理の流れを表現",
+  },
+  sequence: {
+    label: "シーケンス図",
+    icon: "↔️",
+    description: "オブジェクト間のやり取り",
+  },
+  classDiagram: {
+    label: "クラス図",
+    icon: "📦",
+    description: "クラスの構造と関係",
+  },
+  stateDiagram: {
+    label: "状態遷移図",
+    icon: "🔄",
+    description: "状態の変化を表現",
+  },
+  erDiagram: {
+    label: "ER図",
+    icon: "🗄️",
+    description: "データベース設計",
+  },
+};
+
+/**
+ * 図の種類ごとの初期Mermaidコード（最小限のテンプレート）
+ */
+export const DIAGRAM_TEMPLATES: Record<DiagramType, string> = {
+  flowchart: `flowchart TD
+    A[開始]`,
+  sequence: `sequenceDiagram
+    participant A as アクター`,
+  classDiagram: `classDiagram
+    class MyClass`,
+  stateDiagram: `stateDiagram-v2
+    [*] --> State1`,
+  erDiagram: `erDiagram
+    ENTITY`,
+};
+
 // 1. プロジェクト（図）の基本情報
 export const projects = pgTable("projects", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
+  /** 図の種類（flowchart, sequence, erDiagram など） */
+  diagramType: varchar("diagram_type", { length: 50 })
+    .notNull()
+    .default("flowchart"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
