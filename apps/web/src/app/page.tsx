@@ -5,6 +5,11 @@ import { useState, useCallback, useEffect } from "react";
 import DynamicDiagramCanvas from "@/components/DynamicDiagramCanvas";
 import type { Stroke } from "@/components/HandwritingCanvas";
 import type { ConvertWithAIData } from "@/components/DiagramCanvas";
+import {
+  DIAGRAM_TYPES,
+  DIAGRAM_TYPE_INFO,
+  type DiagramType,
+} from "@/server/db/schema";
 
 /**
  * 選択中のプロジェクト情報
@@ -12,10 +17,12 @@ import type { ConvertWithAIData } from "@/components/DiagramCanvas";
 type SelectedProject = {
   id: string;
   name: string;
+  diagramType: DiagramType;
 };
 
 export default function Home() {
   const [projectName, setProjectName] = useState("");
+  const [selectedDiagramType, setSelectedDiagramType] = useState<DiagramType>("flowchart");
   const [selectedProject, setSelectedProject] = useState<SelectedProject | null>(null);
   
   // 編集中のMermaidコード
@@ -41,6 +48,7 @@ export default function Home() {
   const createProject = trpc.diagram.createProject.useMutation({
     onSuccess: () => {
       setProjectName("");
+      setSelectedDiagramType("flowchart");
       refetch();
     },
   });
@@ -137,21 +145,28 @@ export default function Home() {
    */
   const handleCreate = () => {
     if (projectName.trim()) {
-      createProject.mutate({ name: projectName });
+      createProject.mutate({
+        name: projectName,
+        diagramType: selectedDiagramType,
+      });
     }
   };
 
   /**
    * プロジェクト選択
    */
-  const handleSelectProject = useCallback((project: { id: string; name: string }) => {
-    setSelectedProject({
-      id: project.id,
-      name: project.name,
-    });
-    setCanvasKey((prev) => prev + 1);
-    setLastAiResult(null);
-  }, []);
+  const handleSelectProject = useCallback(
+    (project: { id: string; name: string; diagramType: string }) => {
+      setSelectedProject({
+        id: project.id,
+        name: project.name,
+        diagramType: project.diagramType as DiagramType,
+      });
+      setCanvasKey((prev) => prev + 1);
+      setLastAiResult(null);
+    },
+    []
+  );
 
   /**
    * プロジェクト選択解除
@@ -198,9 +213,10 @@ export default function Home() {
         nodePositions: data.nodePositions,
         canvasImage: data.canvasImage,
         hint: data.hint,
+        diagramType: selectedProject?.diagramType ?? "flowchart",
       });
     },
-    [interpretStrokes]
+    [interpretStrokes, selectedProject?.diagramType]
   );
 
   /**
@@ -254,6 +270,18 @@ export default function Home() {
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-all"
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
+            {/* 図の種類選択 */}
+            <select
+              value={selectedDiagramType}
+              onChange={(e) => setSelectedDiagramType(e.target.value as DiagramType)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-all bg-white"
+            >
+              {DIAGRAM_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {DIAGRAM_TYPE_INFO[type].icon} {DIAGRAM_TYPE_INFO[type].label}
+                </option>
+              ))}
+            </select>
             <button
               type="button"
               onClick={handleCreate}
@@ -277,25 +305,38 @@ export default function Home() {
             </div>
           )}
           <ul className="space-y-1">
-            {projects?.map((project) => (
-              <li
-                key={project.id}
-                onClick={() => handleSelectProject(project)}
-                onKeyDown={(e) => e.key === "Enter" && handleSelectProject(project)}
-                className={`px-3 py-2 rounded-lg cursor-pointer transition-all ${
-                  selectedProject?.id === project.id
-                    ? "bg-violet-100 text-violet-700"
-                    : "hover:bg-gray-100 text-gray-700"
-                }`}
-              >
-                <div className="text-sm font-medium truncate">
-                  {project.name}
-                </div>
-                <div className="text-xs text-gray-400 mt-0.5">
-                  {new Date(project.createdAt).toLocaleDateString("ja-JP")}
-                </div>
-              </li>
-            ))}
+            {projects?.map((project) => {
+              const diagramType = (project.diagramType || "flowchart") as DiagramType;
+              const typeInfo = DIAGRAM_TYPE_INFO[diagramType];
+              return (
+                <li
+                  key={project.id}
+                  onClick={() => handleSelectProject(project)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSelectProject(project)}
+                  className={`px-3 py-2 rounded-lg cursor-pointer transition-all ${
+                    selectedProject?.id === project.id
+                      ? "bg-violet-100 text-violet-700"
+                      : "hover:bg-gray-100 text-gray-700"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base" title={typeInfo.label}>
+                      {typeInfo.icon}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {project.name}
+                      </div>
+                      <div className="text-xs text-gray-400 flex items-center gap-1">
+                        <span>{typeInfo.label}</span>
+                        <span>·</span>
+                        <span>{new Date(project.createdAt).toLocaleDateString("ja-JP")}</span>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       </aside>
@@ -315,9 +356,15 @@ export default function Home() {
                 >
                   ←
                 </button>
+                <span className="text-base">
+                  {DIAGRAM_TYPE_INFO[selectedProject.diagramType].icon}
+                </span>
                 <h2 className="text-sm font-semibold text-gray-800">
                   {selectedProject.name}
                 </h2>
+                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
+                  {DIAGRAM_TYPE_INFO[selectedProject.diagramType].label}
+                </span>
               </div>
             ) : (
               <h2 className="text-sm font-semibold text-gray-800">プロジェクトを選択</h2>

@@ -1,6 +1,13 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { diagramVersions, handwritingStrokes, projects } from "../../db/schema";
+import {
+  DIAGRAM_TEMPLATES,
+  DIAGRAM_TYPES,
+  type DiagramType,
+  diagramVersions,
+  handwritingStrokes,
+  projects,
+} from "../../db/schema";
 import { publicProcedure, router } from "../init";
 
 /**
@@ -12,6 +19,11 @@ const strokeSchema = z.object({
   color: z.string(),
   strokeWidth: z.number(),
 });
+
+/**
+ * 図の種類のZodスキーマ
+ */
+const diagramTypeSchema = z.enum(DIAGRAM_TYPES);
 
 export const diagramRouter = router({
   // プロジェクト一覧を取得
@@ -26,18 +38,24 @@ export const diagramRouter = router({
     .input(
       z.object({
         name: z.string().min(1).max(255),
+        diagramType: diagramTypeSchema.optional().default("flowchart"),
         initialMermaidCode: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const diagramType = input.diagramType as DiagramType;
+
       const [project] = await ctx.db
         .insert(projects)
-        .values({ name: input.name })
+        .values({
+          name: input.name,
+          diagramType,
+        })
         .returning();
 
-      // 初期バージョンを作成
+      // 初期バージョンを作成（図の種類に応じたテンプレートを使用）
       const mermaidCode =
-        input.initialMermaidCode ?? "flowchart TD\n    A[Start]";
+        input.initialMermaidCode ?? DIAGRAM_TEMPLATES[diagramType];
       await ctx.db.insert(diagramVersions).values({
         projectId: project.id,
         versionNumber: 1,

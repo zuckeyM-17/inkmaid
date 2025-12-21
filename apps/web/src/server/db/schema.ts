@@ -9,10 +9,118 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+/**
+ * サポートする図の種類
+ */
+export const DIAGRAM_TYPES = [
+  "flowchart",
+  "sequence",
+  "classDiagram",
+  "stateDiagram",
+  "erDiagram",
+] as const;
+
+export type DiagramType = (typeof DIAGRAM_TYPES)[number];
+
+/**
+ * 図の種類ごとの情報
+ */
+export const DIAGRAM_TYPE_INFO: Record<
+  DiagramType,
+  { label: string; icon: string; description: string }
+> = {
+  flowchart: {
+    label: "フローチャート",
+    icon: "🔀",
+    description: "処理の流れを表現",
+  },
+  sequence: {
+    label: "シーケンス図",
+    icon: "↔️",
+    description: "オブジェクト間のやり取り",
+  },
+  classDiagram: {
+    label: "クラス図",
+    icon: "📦",
+    description: "クラスの構造と関係",
+  },
+  stateDiagram: {
+    label: "状態遷移図",
+    icon: "🔄",
+    description: "状態の変化を表現",
+  },
+  erDiagram: {
+    label: "ER図",
+    icon: "🗄️",
+    description: "データベース設計",
+  },
+};
+
+/**
+ * 図の種類ごとの初期Mermaidコード
+ */
+export const DIAGRAM_TEMPLATES: Record<DiagramType, string> = {
+  flowchart: `flowchart TD
+    A[開始] --> B{条件}
+    B -->|Yes| C[処理1]
+    B -->|No| D[処理2]
+    C --> E[終了]
+    D --> E`,
+  sequence: `sequenceDiagram
+    participant User as ユーザー
+    participant System as システム
+    participant DB as データベース
+    
+    User->>System: リクエスト
+    System->>DB: データ取得
+    DB-->>System: データ返却
+    System-->>User: レスポンス`,
+  classDiagram: `classDiagram
+    class Animal {
+        +String name
+        +int age
+        +makeSound()
+    }
+    class Dog {
+        +String breed
+        +bark()
+    }
+    class Cat {
+        +String color
+        +meow()
+    }
+    Animal <|-- Dog
+    Animal <|-- Cat`,
+  stateDiagram: `stateDiagram-v2
+    [*] --> Idle
+    Idle --> Processing : start
+    Processing --> Success : complete
+    Processing --> Error : fail
+    Success --> [*]
+    Error --> Idle : retry`,
+  erDiagram: `erDiagram
+    USERS {
+        int id PK
+        string name
+        string email
+    }
+    POSTS {
+        int id PK
+        string title
+        text content
+        int user_id FK
+    }
+    USERS ||--o{ POSTS : writes`,
+};
+
 // 1. プロジェクト（図）の基本情報
 export const projects = pgTable("projects", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
+  /** 図の種類（flowchart, sequence, erDiagram など） */
+  diagramType: varchar("diagram_type", { length: 50 })
+    .notNull()
+    .default("flowchart"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
