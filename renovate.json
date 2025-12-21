@@ -1,0 +1,83 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":preserveSemverRanges"
+  ],
+  "labels": ["dependencies"],
+  "timezone": "Asia/Tokyo",
+  "schedule": ["every weekend"],
+  "prHourlyLimit": 3,
+  "prConcurrentLimit": 5,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 5am on monday"]
+  },
+  "packageRules": [
+    {
+      "description": "tRPC関連パッケージを同時更新",
+      "groupName": "tRPC",
+      "matchPackagePatterns": ["^@trpc/"],
+      "matchUpdateTypes": ["major", "minor", "patch"]
+    },
+    {
+      "description": "Vercel AI SDK関連パッケージを同時更新",
+      "groupName": "AI SDK",
+      "matchPackagePatterns": ["^@ai-sdk/", "^ai$"],
+      "matchUpdateTypes": ["major", "minor", "patch"]
+    },
+    {
+      "description": "Drizzle関連パッケージを同時更新",
+      "groupName": "Drizzle",
+      "matchPackagePatterns": ["^drizzle-"],
+      "matchUpdateTypes": ["major", "minor", "patch"]
+    },
+    {
+      "description": "React関連パッケージを同時更新",
+      "groupName": "React",
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"],
+      "matchUpdateTypes": ["major", "minor", "patch"]
+    },
+    {
+      "description": "Konva関連パッケージを同時更新",
+      "groupName": "Konva",
+      "matchPackageNames": ["konva", "react-konva"],
+      "matchUpdateTypes": ["major", "minor", "patch"]
+    },
+    {
+      "description": "型定義パッケージは自動マージ",
+      "groupName": "Type definitions",
+      "matchPackagePatterns": ["^@types/"],
+      "excludePackageNames": ["@types/react", "@types/react-dom"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Biomeは自動マージ（パッチのみ）",
+      "matchPackageNames": ["@biomejs/biome"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "メジャーアップデートは個別PR",
+      "matchUpdateTypes": ["major"],
+      "separateMajorMinor": true,
+      "labels": ["dependencies", "breaking-change"]
+    },
+    {
+      "description": "RCバージョンは3日待ってから提案（tRPC用）",
+      "matchPackagePatterns": ["^@trpc/"],
+      "stabilityDays": 3
+    },
+    {
+      "description": "devDependenciesはまとめて更新",
+      "matchDepTypes": ["devDependencies"],
+      "groupName": "devDependencies (non-major)",
+      "matchUpdateTypes": ["minor", "patch"],
+      "excludePackagePatterns": ["^@types/", "^@biomejs/"]
+    }
+  ],
+  "postUpdateOptions": ["pnpmDedupe"],
+  "ignoreDeps": []
+}
+
