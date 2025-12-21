@@ -148,4 +148,8 @@ export type NewProject = typeof projects.$inferInsert;
    - REST APIエンドポイントの追加
    - 型定義の変更
    - 使用例のコード追加
+8. **機能を完了したら `doc/TODO.md` を更新する**
+   - 完了したタスクを「🟢 完了済み」セクションに移動
+   - 新しいタスクがあれば優先度に応じて追加
+   - 「最終更新」の日付を更新
 
