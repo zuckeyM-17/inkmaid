@@ -1,10 +1,10 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: inkmaid-db
+    container_name: ${COMPOSE_PROJECT_NAME:-inkmaid}-db
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-inkmaid}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inkmaid_password}
@@ -19,4 +19,4 @@ services:
 
 volumes:
   postgres_data:
-
+    name: ${COMPOSE_PROJECT_NAME:-inkmaid}_postgres_data
