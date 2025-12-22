@@ -377,11 +377,10 @@ git worktree remove ../inkmaid-feature-auth
 graph LR
     A[設計確認] --> B[ブランチ作成]
     B --> C[実装]
-    C --> D[テスト]
-    D --> E[Lintチェック]
-    E --> F[開発ログ更新]
-    F --> G[コミット]
-    G --> H[PR作成]
+    C --> D[CIチェック]
+    D --> E[開発ログ更新]
+    E --> F[コミット]
+    F --> G[PR作成]
 ```
 
 #### ステップ詳細
@@ -402,27 +401,29 @@ graph LR
    - 型安全性を確保
    - 適切なエラーハンドリングを実装
 
-4. **テスト**
+4. **CIチェック（必須）**
    ```bash
-   pnpm test
-   ```
-
-5. **Lintチェック**
-   ```bash
+   # Lint チェック
+   pnpm lint
+   
+   # 型チェック
+   pnpm --filter web exec tsc --noEmit
+   
+   # 自動修正が必要な場合
    pnpm lint:fix
    ```
 
-6. **開発ログ更新**
+5. **開発ログ更新**
    - `doc/logs/YYYY/MM/YYYYMMDD-N.md` を作成/更新
    - 実装内容、変更ファイル、次のステップを記録
 
-7. **コミット**
+6. **コミット**
    ```bash
    git add .
    git commit -m "機能: XXXを追加"
    ```
 
-8. **PR作成**
+7. **PR作成**
    - 変更内容の概要を記述
    - レビュワーに文脈を提供
 
@@ -594,11 +595,31 @@ mkdir -p doc/logs/2025/12
 - 新しいタスクがあれば優先度に応じて追加
 - 「最終更新」の日付を更新
 
-#### 4. **コード品質チェック**
+#### 4. **CIチェック（必須）** ⚠️
+
+**作業完了前に、CIと同じチェックを必ず実行すること：**
+
+```bash
+# 1. Lint チェック（Biome）- 必須
+pnpm lint
+
+# 2. 型チェック（TypeScript）- 必須
+pnpm --filter web exec tsc --noEmit
+
+# 3. ビルドチェック（大きな変更の場合に推奨）
+DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy pnpm build
+```
+
+| チェック | コマンド | 必須 |
+|---------|---------|------|
+| Lint | `pnpm lint` | ✅ |
+| Type Check | `pnpm --filter web exec tsc --noEmit` | ✅ |
+| Build | `pnpm build` | 推奨 |
+
+**自動修正が必要な場合:**
 
 ```bash
 pnpm lint:fix
-pnpm test
 ```
 
 #### 5. **動作確認**
@@ -778,18 +799,37 @@ pnpm test -- --coverage
 
 ---
 
-## CI/CD（今後の実装予定）
+## CI/CD
 
-現在は手動デプロイですが、以下のCI/CDパイプラインを検討中:
+GitHub Actionsで以下のチェックが自動実行されます（PRおよびmainブランチへのpush時）:
 
-1. **GitHub Actions**
-   - Lint/Format チェック
-   - テスト実行
-   - ビルドチェック
+### CIチェック項目
 
-2. **自動デプロイ**
-   - Vercel or AWS
-   - mainブランチへのマージで自動デプロイ
+| ジョブ | コマンド | 説明 |
+|-------|---------|------|
+| **Lint** | `pnpm lint` | Biomeによるコードスタイル・構文チェック |
+| **Type Check** | `pnpm --filter web exec tsc --noEmit` | TypeScriptの型エラーチェック |
+| **Build** | `pnpm build` | Next.jsのビルドが成功するか確認 |
+
+### ローカルでCIと同じチェックを実行
+
+```bash
+# Lint チェック
+pnpm lint
+
+# 型チェック
+pnpm --filter web exec tsc --noEmit
+
+# ビルドチェック（オプション）
+DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy pnpm build
+```
+
+**注意**: PRを作成する前に、これらのチェックをローカルで通過させてください。
+
+### 自動デプロイ（今後の予定）
+
+- Vercel or AWS
+- mainブランチへのマージで自動デプロイ
 
 ---
 
