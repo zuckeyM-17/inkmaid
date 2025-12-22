@@ -1,11 +1,11 @@
 "use client";
 
+import { trpc } from "@/lib/trpc/client";
 import {
   DIAGRAM_TYPES,
   DIAGRAM_TYPE_INFO,
   type DiagramType,
 } from "@/server/db/schema";
-import { trpc } from "@/lib/trpc/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -172,7 +172,8 @@ export default function Home() {
                 >
                   {DIAGRAM_TYPES.map((type) => (
                     <option key={type} value={type}>
-                      {DIAGRAM_TYPE_INFO[type].icon} {DIAGRAM_TYPE_INFO[type].label}
+                      {DIAGRAM_TYPE_INFO[type].icon}{" "}
+                      {DIAGRAM_TYPE_INFO[type].label}
                     </option>
                   ))}
                 </select>
@@ -214,7 +215,9 @@ export default function Home() {
                 return (
                   <div
                     key={project.id}
-                    onClick={() => !isArchiving && handleSelectProject(project.id)}
+                    onClick={() =>
+                      !isArchiving && handleSelectProject(project.id)
+                    }
                     onKeyDown={(e) =>
                       e.key === "Enter" &&
                       !isArchiving &&
@@ -247,6 +250,7 @@ export default function Home() {
                             viewBox="0 0 24 24"
                             stroke="currentColor"
                             strokeWidth={2}
+                            aria-hidden="true"
                           >
                             <path
                               strokeLinecap="round"
@@ -266,7 +270,9 @@ export default function Home() {
                       </span>
                       <span>·</span>
                       <span>
-                        {new Date(project.createdAt).toLocaleDateString("ja-JP")}
+                        {new Date(project.createdAt).toLocaleDateString(
+                          "ja-JP",
+                        )}
                       </span>
                     </div>
                   </div>
@@ -291,6 +297,7 @@ export default function Home() {
                 viewBox="0 0 24 24"
                 stroke="currentColor"
                 strokeWidth={2}
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -319,7 +326,10 @@ export default function Home() {
                       }`}
                     >
                       <div className="flex items-start justify-between mb-3">
-                        <span className="text-2xl grayscale" title={typeInfo.label}>
+                        <span
+                          className="text-2xl grayscale"
+                          title={typeInfo.label}
+                        >
                           {typeInfo.icon}
                         </span>
                         <button
@@ -339,6 +349,7 @@ export default function Home() {
                               viewBox="0 0 24 24"
                               stroke="currentColor"
                               strokeWidth={2}
+                              aria-hidden="true"
                             >
                               <path
                                 strokeLinecap="round"
@@ -395,7 +406,9 @@ export default function Home() {
               <span>線 → 接続</span>
             </div>
           </div>
-          <p>手書きでダイアグラムを描いて、AIが自動でMermaidコードに変換します</p>
+          <p>
+            手書きでダイアグラムを描いて、AIが自動でMermaidコードに変換します
+          </p>
         </footer>
       </main>
     </div>

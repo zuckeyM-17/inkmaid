@@ -115,8 +115,10 @@ const HandwritingCanvas = forwardRef<
   /**
    * ユニークなIDを生成
    */
-  const generateId = () =>
-    `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const generateId = useCallback(
+    () => `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    [],
+  );
 
   /**
    * 描画開始
@@ -180,6 +182,7 @@ const HandwritingCanvas = forwardRef<
     strokes,
     onStrokeComplete,
     onStrokesChange,
+    generateId,
   ]);
 
   /**

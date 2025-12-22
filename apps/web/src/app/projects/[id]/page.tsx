@@ -230,8 +230,7 @@ export default function ProjectDetailPage() {
           nodePositions: data.nodePositions,
           canvasImage: data.canvasImage,
           hint: data.hint,
-          diagramType:
-            (projectData?.diagramType as DiagramType) ?? "flowchart",
+          diagramType: (projectData?.diagramType as DiagramType) ?? "flowchart",
         },
         handleStreamComplete,
       );
@@ -290,7 +289,8 @@ export default function ProjectDetailPage() {
             プロジェクトが見つかりません
           </h2>
           <p className="text-gray-500 text-sm mb-4">
-            {error?.message || "指定されたプロジェクトは存在しないか削除されました"}
+            {error?.message ||
+              "指定されたプロジェクトは存在しないか削除されました"}
           </p>
           <button
             type="button"
@@ -328,6 +328,7 @@ export default function ProjectDetailPage() {
             {isEditingName ? (
               <div className="flex items-center gap-1">
                 <input
+                  ref={(input) => input?.focus()}
                   type="text"
                   value={editingName}
                   onChange={(e) => setEditingName(e.target.value)}
@@ -336,7 +337,6 @@ export default function ProjectDetailPage() {
                     if (e.key === "Escape") handleCancelEditName();
                   }}
                   className="text-sm font-semibold text-gray-800 border border-violet-300 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
-                  autoFocus
                   disabled={renameProject.isPending}
                 />
                 <button
@@ -506,4 +506,3 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
-

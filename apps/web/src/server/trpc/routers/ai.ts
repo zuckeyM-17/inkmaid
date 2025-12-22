@@ -416,10 +416,10 @@ ${currentMermaidCode}
 
       // ストロークのバウンディングボックスを計算するヘルパー
       const getStrokeBounds = (points: number[]) => {
-        let minX = Number.POSITIVE_INFINITY,
-          maxX = Number.NEGATIVE_INFINITY,
-          minY = Number.POSITIVE_INFINITY,
-          maxY = Number.NEGATIVE_INFINITY;
+        let minX = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        let minY = Number.POSITIVE_INFINITY;
+        let maxY = Number.NEGATIVE_INFINITY;
         for (let i = 0; i < points.length; i += 2) {
           minX = Math.min(minX, points[i]);
           maxX = Math.max(maxX, points[i]);

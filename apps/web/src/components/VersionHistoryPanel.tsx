@@ -49,7 +49,7 @@ function getUpdateTypeLabel(updateType: string): string {
 /**
  * 日時をフォーマット
  */
-function formatDate(date: Date): string {
+function formatDate(date: Date | string): string {
   return new Intl.DateTimeFormat("ja-JP", {
     month: "numeric",
     day: "numeric",
@@ -168,9 +168,7 @@ export default function VersionHistoryPanel({
                     type="button"
                     onClick={() => handleSelectVersion(version.id)}
                     className={`w-full p-3 text-left transition-colors ${
-                      isSelected
-                        ? "bg-violet-900/50"
-                        : "hover:bg-slate-800/50"
+                      isSelected ? "bg-violet-900/50" : "hover:bg-slate-800/50"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -260,9 +258,7 @@ export default function VersionHistoryPanel({
                           ) : (
                             <button
                               type="button"
-                              onClick={() =>
-                                setConfirmingRollback(version.id)
-                              }
+                              onClick={() => setConfirmingRollback(version.id)}
                               className="w-full px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs rounded transition-colors flex items-center justify-center gap-1"
                             >
                               <span>⏪</span>
@@ -280,9 +276,7 @@ export default function VersionHistoryPanel({
         ) : (
           <div className="flex flex-col items-center justify-center h-32 text-slate-500">
             <span className="text-3xl mb-2 opacity-50">📜</span>
-            <p className="text-xs text-center">
-              履歴がありません
-            </p>
+            <p className="text-xs text-center">履歴がありません</p>
           </div>
         )}
       </div>
@@ -298,4 +292,3 @@ export default function VersionHistoryPanel({
     </aside>
   );
 }
-

@@ -18,12 +18,12 @@ function extractNodePositions(
 
   // SVGのviewBoxを考慮したスケール計算
   const viewBox = svgElement.viewBox.baseVal;
-  const scaleX = svgRect.width / (viewBox.width || svgRect.width);
-  const scaleY = svgRect.height / (viewBox.height || svgRect.height);
+  const _scaleX = svgRect.width / (viewBox.width || svgRect.width);
+  const _scaleY = svgRect.height / (viewBox.height || svgRect.height);
 
   // SVGのオフセット（コンテナ内でのSVGの位置）
-  const svgOffsetX = svgRect.left - containerRect.left;
-  const svgOffsetY = svgRect.top - containerRect.top;
+  const _svgOffsetX = svgRect.left - containerRect.left;
+  const _svgOffsetY = svgRect.top - containerRect.top;
 
   // .node クラスを持つ要素（フローチャートのノード）を取得
   const nodeElements = svgElement.querySelectorAll(".node");
@@ -187,7 +187,7 @@ export default function MermaidPreview({
     };
 
     renderDiagram();
-  }, [code, id, isInitialized]);
+  }, [code, id, isInitialized, onParseError, onRenderSuccess]);
 
   return (
     <div
