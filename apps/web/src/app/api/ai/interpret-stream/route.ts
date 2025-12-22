@@ -355,6 +355,28 @@ ${userMessage}`
     ? diagramType
     : "flowchart";
 
+  // APIキーの存在チェック
+  const provider = getProvider();
+  const apiKeyMissing =
+    (provider === "anthropic" && !process.env.ANTHROPIC_API_KEY) ||
+    (provider === "openai" && !process.env.OPENAI_API_KEY) ||
+    (provider === "google" && !process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+
+  if (apiKeyMissing) {
+    const envVarName =
+      provider === "anthropic"
+        ? "ANTHROPIC_API_KEY"
+        : provider === "openai"
+          ? "OPENAI_API_KEY"
+          : "GOOGLE_GENERATIVE_AI_API_KEY";
+    return new Response(
+      JSON.stringify({
+        error: `${envVarName} が設定されていません。.env.local ファイルにAPIキーを設定してください。`,
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   // ストリーミングでAI応答を生成
   const result = streamText({
     model: getModel(),
@@ -393,6 +415,7 @@ ${userMessage}`
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       } catch (error) {
+        console.error("[interpret-stream] エラー:", error);
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
         const data = JSON.stringify({ type: "error", error: errorMessage });

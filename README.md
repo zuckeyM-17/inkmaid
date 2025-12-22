@@ -63,9 +63,13 @@ cd inkmaid
 pnpm install
 
 # 3. 環境変数を設定
-cp .env.example .env
-cp apps/web/.env.example apps/web/.env.local
-# apps/web/.env.local を編集してAI_PROVIDERとAPIキーを設定
+pnpm setup:default
+# または手動でセットアップ:
+# cp env.example .env
+# cp apps/web/env.local.example apps/web/.env.local
+
+# apps/web/.env.local を編集してAPIキーを設定
+# ANTHROPIC_API_KEY=sk-ant-xxxxx
 
 # 4. 開発環境を起動（DB + Next.js）
 pnpm dev:all
