@@ -346,10 +346,14 @@ export default function DiagramCanvas({
       {showHintInput && (
         <div className="bg-violet-50 rounded-xl border border-violet-200 p-4 flex gap-3 items-end">
           <div className="flex-1">
-            <label className="block text-xs font-medium text-violet-700 mb-1.5">
+            <label
+              htmlFor="hint-input"
+              className="block text-xs font-medium text-violet-700 mb-1.5"
+            >
               💡 補足説明（オプション）
             </label>
             <input
+              id="hint-input"
               type="text"
               value={hint}
               onChange={(e) => setHint(e.target.value)}

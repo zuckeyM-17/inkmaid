@@ -209,6 +209,54 @@ const { data: versions } = trpc.diagram.getVersionHistory.useQuery({
 
 ---
 
+### diagram.getVersion
+
+特定のバージョン詳細を取得します（プレビュー用）。
+
+| 項目 | 値 |
+|-----|-----|
+| メソッド | Query |
+| 入力 | `{ projectId: string, versionId: number }` |
+| 出力 | `DiagramVersion & { strokes: Stroke[] }` |
+
+```tsx
+const { data: version } = trpc.diagram.getVersion.useQuery({ 
+  projectId: "...",
+  versionId: 5
+});
+// version.mermaidCode - Mermaidコード
+// version.strokes - ストロークデータ
+```
+
+---
+
+### diagram.rollbackToVersion
+
+指定したバージョンにロールバックします。選択したバージョンの状態を新しいバージョンとして復元します（履歴は破壊しません）。
+
+| 項目 | 値 |
+|-----|-----|
+| メソッド | Mutation |
+| 入力 | `{ projectId: string, versionId: number }` |
+| 出力 | `{ success: boolean, newVersion: DiagramVersion, rolledBackFrom: number }` |
+
+```tsx
+const rollback = trpc.diagram.rollbackToVersion.useMutation({
+  onSuccess: (data) => {
+    console.log(`v${data.rolledBackFrom} の状態に復元しました`);
+    refetch(); // プロジェクトデータを再取得
+  },
+});
+
+// ロールバック実行
+rollback.mutate({ 
+  projectId: "...",
+  versionId: 3  // このバージョンの状態を復元
+});
+```
+
+---
+
 ### diagram.saveVersion
 
 新しいバージョンを保存します。
