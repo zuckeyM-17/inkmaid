@@ -112,8 +112,11 @@ export type NewProject = typeof projects.$inferInsert;
 
 | コマンド | 説明 |
 |---------|------|
+| `pnpm setup` | worktree用の環境変数を自動設定 |
+| `pnpm setup:default` | デフォルトポート（5432, 3000）で環境設定 |
 | `pnpm dev:all` | DB起動 → 開発サーバー起動 |
 | `pnpm db:push` | スキーマをDBに反映 |
+| `pnpm db:status` | Dockerコンテナの状態を確認 |
 | `pnpm lint:fix` | Biomeで自動修正 |
 | `pnpm test` | テスト実行 |
 
@@ -130,6 +133,7 @@ export type NewProject = typeof projects.$inferInsert;
 - 環境変数は `.env.local` に設定（.envはルートのDocker用）
 - Biomeのルールに従う（ESLint/Prettierは使用しない）
 - コミット前に `pnpm lint:fix` を実行
+- git worktree使用時は `pnpm setup` で環境を初期化
 
 ## AI開発時のガイドライン
 

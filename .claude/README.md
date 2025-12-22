@@ -225,6 +225,19 @@ Inkmaidは、ブラウザ上での手書き入力とAIエージェントによ�
 
 ## 重要なコマンド
 
+### 環境セットアップ（Git Worktree対応）
+
+```bash
+# worktree用の環境変数を自動設定（一意なポートを自動割り当て）
+pnpm setup
+
+# デフォルトポート（5432, 3000）で環境設定（メインリポジトリ向け）
+pnpm setup:default
+
+# 手動でポートを指定する場合
+DB_PORT=5433 NEXT_PORT=3001 pnpm setup
+```
+
 ### 開発環境
 
 ```bash
@@ -249,6 +262,9 @@ pnpm db:up
 
 # DBコンテナ停止
 pnpm db:down
+
+# Dockerコンテナの状態を確認
+pnpm db:status
 
 # スキーマをDBに反映（開発時）
 pnpm db:push
@@ -297,6 +313,59 @@ pnpm test -- --watch
 # マージ済みブランチの削除
 pnpm git:clean-branches
 ```
+
+---
+
+## Git Worktree での複数環境構築
+
+Git worktreeを使用すると、同じリポジトリで複数のブランチを同時に作業できます。
+各worktreeで独立したDocker環境（PostgreSQL）と開発サーバーが動作します。
+
+### Worktree の作成と開発
+
+```bash
+# 1. worktreeを作成
+git worktree add ../inkmaid-feature-auth feature/auth
+
+# 2. worktreeに移動
+cd ../inkmaid-feature-auth
+
+# 3. 依存関係をインストール
+pnpm install
+
+# 4. 環境をセットアップ（一意なポートが自動割り当て）
+pnpm setup
+
+# 5. 開発開始
+pnpm dev:all
+```
+
+### ポート割り当ての仕組み
+
+- ディレクトリ名のハッシュ値から0-99のオフセットを自動計算
+- PostgreSQL: `5432 + offset`
+- Next.js: `3000 + offset`
+- 同じディレクトリ名なら常に同じポートが割り当てられる
+
+### Docker分離の仕組み
+
+- `COMPOSE_PROJECT_NAME` でコンテナ名が分離
+- ボリュームも自動的に分離
+- 複数のworktreeが同時に独立したDBを持てる
+
+### Worktree の削除
+
+```bash
+# worktreeを削除する前にDockerを停止
+cd ../inkmaid-feature-auth
+pnpm db:down
+
+# worktreeを削除
+cd ../inkmaid
+git worktree remove ../inkmaid-feature-auth
+```
+
+詳細は `doc/development-guide.md` の「Git Worktree での複数環境構築」セクションを参照してください。
 
 ---
 
