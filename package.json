@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter web dev",
+    "setup": "./scripts/setup-worktree.sh",
+    "setup:default": "./scripts/setup-worktree.sh --default",
+    "dev": "pnpm --filter web dev --port ${NEXT_PORT:-3000}",
     "dev:all": "pnpm db:up && pnpm dev",
     "build": "pnpm --filter web build",
     "start": "pnpm --filter web start",
@@ -20,6 +22,7 @@
     "db:generate": "pnpm --filter web db:generate",
     "db:migrate": "pnpm --filter web db:migrate",
     "db:studio": "pnpm --filter web db:studio",
+    "db:status": "docker compose ps",
     "prod:build": "docker compose -f docker-compose.prod.yml build",
     "prod:up": "docker compose -f docker-compose.prod.yml up -d",
     "prod:down": "docker compose -f docker-compose.prod.yml down",
