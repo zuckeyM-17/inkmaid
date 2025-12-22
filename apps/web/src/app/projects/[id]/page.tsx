@@ -4,6 +4,7 @@ import AIThinkingPanel from "@/components/AIThinkingPanel";
 import type { ConvertWithAIData } from "@/components/DiagramCanvas";
 import DynamicDiagramCanvas from "@/components/DynamicDiagramCanvas";
 import type { Stroke } from "@/components/HandwritingCanvas";
+import VersionHistoryPanel from "@/components/VersionHistoryPanel";
 import { useAIStream } from "@/lib/hooks/useAIStream";
 import { trpc } from "@/lib/trpc/client";
 import { DIAGRAM_TYPE_INFO, type DiagramType } from "@/server/db/schema";
@@ -33,6 +34,9 @@ export default function ProjectDetailPage() {
 
   // AI思考パネルの表示状態
   const [showThinkingPanel, setShowThinkingPanel] = useState(true);
+
+  // バージョン履歴パネルの表示状態
+  const [showVersionPanel, setShowVersionPanel] = useState(false);
 
   // プロジェクト名の編集状態
   const [isEditingName, setIsEditingName] = useState(false);
@@ -373,22 +377,39 @@ export default function ProjectDetailPage() {
             </span>
           </div>
 
-          {/* AI思考パネルトグル */}
-          <button
-            type="button"
-            onClick={() => setShowThinkingPanel(!showThinkingPanel)}
-            className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1.5 transition-all ${
-              showThinkingPanel
-                ? "bg-violet-100 text-violet-700"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
-          >
-            <span>🧠</span>
-            AI思考ログ
-            {aiStream.isProcessing && (
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            )}
-          </button>
+          {/* ヘッダー右側のボタン群 */}
+          <div className="flex items-center gap-2">
+            {/* バージョン履歴トグル */}
+            <button
+              type="button"
+              onClick={() => setShowVersionPanel(!showVersionPanel)}
+              className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1.5 transition-all ${
+                showVersionPanel
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              <span>📜</span>
+              履歴
+            </button>
+
+            {/* AI思考パネルトグル */}
+            <button
+              type="button"
+              onClick={() => setShowThinkingPanel(!showThinkingPanel)}
+              className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1.5 transition-all ${
+                showThinkingPanel
+                  ? "bg-violet-100 text-violet-700"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              <span>🧠</span>
+              AI思考ログ
+              {aiStream.isProcessing && (
+                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              )}
+            </button>
+          </div>
         </header>
 
         {/* コンテンツエリア */}
@@ -460,6 +481,18 @@ export default function ProjectDetailPage() {
           </details>
         </div>
       </main>
+
+      {/* 右サイドバー: バージョン履歴パネル */}
+      <VersionHistoryPanel
+        projectId={projectId}
+        isOpen={showVersionPanel}
+        onClose={() => setShowVersionPanel(false)}
+        onRollbackComplete={() => {
+          // ロールバック完了後にデータを再取得
+          refetch();
+          setCanvasKey((prev) => prev + 1);
+        }}
+      />
 
       {/* 右サイドバー: AI思考ログパネル */}
       <AIThinkingPanel

@@ -316,4 +316,106 @@ export const diagramRouter = router({
         strokes,
       };
     }),
+
+  /**
+   * 指定したバージョンにロールバック
+   * 選択したバージョンのMermaidコードを新しいバージョンとして保存する
+   */
+  rollbackToVersion: publicProcedure
+    .input(
+      z.object({
+        projectId: z.string().uuid(),
+        versionId: z.number(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // 指定されたバージョンを取得
+      const targetVersion = await ctx.db.query.diagramVersions.findFirst({
+        where: and(
+          eq(diagramVersions.projectId, input.projectId),
+          eq(diagramVersions.id, input.versionId),
+        ),
+      });
+
+      if (!targetVersion) {
+        throw new Error("指定されたバージョンが見つかりません");
+      }
+
+      // 現在の最新バージョン番号を取得
+      const latestVersion = await ctx.db.query.diagramVersions.findFirst({
+        where: eq(diagramVersions.projectId, input.projectId),
+        orderBy: (versions, { desc }) => [desc(versions.versionNumber)],
+      });
+
+      const newVersionNumber = (latestVersion?.versionNumber ?? 0) + 1;
+
+      // 新しいバージョンとして保存（ロールバック）
+      const [newVersion] = await ctx.db
+        .insert(diagramVersions)
+        .values({
+          projectId: input.projectId,
+          versionNumber: newVersionNumber,
+          mermaidCode: targetVersion.mermaidCode,
+          updateType: "chat", // ロールバックはchatタイプとして記録
+          reason: `v${targetVersion.versionNumber} にロールバック`,
+        })
+        .returning();
+
+      // 元のバージョンのストロークデータがあればコピー
+      const originalStrokes = await ctx.db.query.handwritingStrokes.findFirst({
+        where: eq(handwritingStrokes.versionId, targetVersion.id),
+      });
+
+      if (originalStrokes) {
+        await ctx.db.insert(handwritingStrokes).values({
+          versionId: newVersion.id,
+          strokeData: originalStrokes.strokeData,
+        });
+      }
+
+      // プロジェクトのupdatedAtを更新
+      await ctx.db
+        .update(projects)
+        .set({ updatedAt: new Date() })
+        .where(eq(projects.id, input.projectId));
+
+      return {
+        success: true,
+        newVersion,
+        rolledBackFrom: targetVersion.versionNumber,
+      };
+    }),
+
+  /**
+   * 特定のバージョンの詳細を取得（プレビュー用）
+   */
+  getVersion: publicProcedure
+    .input(
+      z.object({
+        projectId: z.string().uuid(),
+        versionId: z.number(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const version = await ctx.db.query.diagramVersions.findFirst({
+        where: and(
+          eq(diagramVersions.projectId, input.projectId),
+          eq(diagramVersions.id, input.versionId),
+        ),
+      });
+
+      if (!version) {
+        throw new Error("バージョンが見つかりません");
+      }
+
+      // ストロークデータも取得
+      const strokeRecord = await ctx.db.query.handwritingStrokes.findFirst({
+        where: eq(handwritingStrokes.versionId, version.id),
+      });
+
+      return {
+        ...version,
+        strokes: strokeRecord ? (strokeRecord.strokeData as unknown[]) : [],
+      };
+    }),
 });
