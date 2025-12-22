@@ -64,6 +64,98 @@ createProject.mutate({
 
 ---
 
+### diagram.archiveProject
+
+プロジェクトをアーカイブします。データは保持したまま一覧から非表示にします。
+
+| 項目 | 値 |
+|-----|-----|
+| メソッド | Mutation |
+| 入力 | `{ projectId: string }` |
+| 出力 | `{ success: boolean, archivedProject: Project }` |
+
+```tsx
+const archiveProject = trpc.diagram.archiveProject.useMutation({
+  onSuccess: () => {
+    refetchProjects();
+    refetchArchived();
+  },
+});
+
+// アーカイブ実行
+if (window.confirm("このプロジェクトをアーカイブしますか？")) {
+  archiveProject.mutate({ projectId: "..." });
+}
+```
+
+---
+
+### diagram.unarchiveProject
+
+アーカイブ済みプロジェクトを復元します。
+
+| 項目 | 値 |
+|-----|-----|
+| メソッド | Mutation |
+| 入力 | `{ projectId: string }` |
+| 出力 | `{ success: boolean, restoredProject: Project }` |
+
+```tsx
+const unarchiveProject = trpc.diagram.unarchiveProject.useMutation({
+  onSuccess: () => {
+    refetchProjects();
+    refetchArchived();
+  },
+});
+
+// 復元実行
+unarchiveProject.mutate({ projectId: "..." });
+```
+
+---
+
+### diagram.renameProject
+
+プロジェクト名を変更します。
+
+| 項目 | 値 |
+|-----|-----|
+| メソッド | Mutation |
+| 入力 | `{ projectId: string, name: string }` |
+| 出力 | `{ success: boolean, project: Project }` |
+
+```tsx
+const renameProject = trpc.diagram.renameProject.useMutation({
+  onSuccess: () => {
+    refetch();
+  },
+});
+
+// 名前変更を実行
+renameProject.mutate({ 
+  projectId: "...",
+  name: "新しいプロジェクト名",
+});
+```
+
+---
+
+### diagram.listArchivedProjects
+
+アーカイブ済みプロジェクト一覧を取得します。
+
+| 項目 | 値 |
+|-----|-----|
+| メソッド | Query |
+| 入力 | なし |
+| 出力 | `Project[]` |
+
+```tsx
+const { data: archivedProjects } = trpc.diagram.listArchivedProjects.useQuery();
+```
+
+---
+
 ### diagram.getProject
 
 プロジェクト詳細を取得します。
@@ -363,6 +455,7 @@ type Project = {
   diagramType: string;  // 図の種類
   createdAt: Date;
   updatedAt: Date;
+  archivedAt: Date | null;  // アーカイブ日時（nullの場合はアクティブ）
 };
 ```
 

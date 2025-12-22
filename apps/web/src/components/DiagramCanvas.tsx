@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import DynamicHandwritingCanvas from "./DynamicHandwritingCanvas";
 import DynamicMermaidPreview from "./DynamicMermaidPreview";
 import type { Stroke } from "./HandwritingCanvas";
@@ -86,6 +86,22 @@ export default function DiagramCanvas({
 
   // refs
   const mermaidContainerRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * initialMermaidCodeが外部から変更された場合に内部状態を同期
+   * 画面遷移後にAPIからデータが取得された場合などに対応
+   */
+  useEffect(() => {
+    setMermaidCode(initialMermaidCode);
+    setEditingCode(initialMermaidCode);
+  }, [initialMermaidCode]);
+
+  /**
+   * initialStrokesが外部から変更された場合に内部状態を同期
+   */
+  useEffect(() => {
+    setStrokes(initialStrokes);
+  }, [initialStrokes]);
 
   /**
    * Mermaidレンダリング成功時のハンドラ（ノード位置情報を保存）
