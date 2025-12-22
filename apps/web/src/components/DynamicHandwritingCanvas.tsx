@@ -5,7 +5,11 @@ import type { ComponentProps } from "react";
 import type HandwritingCanvasComponent from "./HandwritingCanvas";
 
 // 型の再エクスポート
-export type { ViewTransform, Stroke, HandwritingCanvasRef } from "./HandwritingCanvas";
+export type {
+  ViewTransform,
+  Stroke,
+  HandwritingCanvasRef,
+} from "./HandwritingCanvas";
 
 /**
  * SSR対応のHandwritingCanvasラッパー

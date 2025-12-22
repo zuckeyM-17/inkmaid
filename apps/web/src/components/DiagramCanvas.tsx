@@ -99,6 +99,7 @@ export default function DiagramCanvas({
    * キャンバスサイズが変更されたときにviewTransformをリセット
    * サイドバーの開閉などでサイズが変わった場合に座標ズレを防ぐ
    */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: width/heightはpropsであり、変更時にリセットが必要
   useEffect(() => {
     setViewTransform({ scale: 1, x: 0, y: 0 });
   }, [width, height]);

@@ -357,7 +357,10 @@ const HandwritingCanvas = forwardRef<
       const direction = e.evt.deltaY > 0 ? -1 : 1;
       const newScale = Math.min(
         MAX_SCALE,
-        Math.max(MIN_SCALE, oldScale * (direction > 0 ? ZOOM_STEP : 1 / ZOOM_STEP)),
+        Math.max(
+          MIN_SCALE,
+          oldScale * (direction > 0 ? ZOOM_STEP : 1 / ZOOM_STEP),
+        ),
       );
 
       // ポインター位置を中心にズーム
