@@ -82,6 +82,8 @@ export const projects = pgTable("projects", {
     .default("flowchart"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  /** アーカイブ日時（nullの場合はアクティブ） */
+  archivedAt: timestamp("archived_at"),
 });
 
 // 2. ダイアグラムのバージョン管理（Mermaidコードの履歴）

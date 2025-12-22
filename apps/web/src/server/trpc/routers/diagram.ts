@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import {
   DIAGRAM_TEMPLATES,
@@ -26,10 +26,23 @@ const strokeSchema = z.object({
 const diagramTypeSchema = z.enum(DIAGRAM_TYPES);
 
 export const diagramRouter = router({
-  // プロジェクト一覧を取得
+  /**
+   * アクティブなプロジェクト一覧を取得（アーカイブ済みを除外）
+   */
   listProjects: publicProcedure.query(async ({ ctx }) => {
     return ctx.db.query.projects.findMany({
+      where: isNull(projects.archivedAt),
       orderBy: (projects, { desc }) => [desc(projects.updatedAt)],
+    });
+  }),
+
+  /**
+   * アーカイブ済みプロジェクト一覧を取得
+   */
+  listArchivedProjects: publicProcedure.query(async ({ ctx }) => {
+    return ctx.db.query.projects.findMany({
+      where: isNotNull(projects.archivedAt),
+      orderBy: (projects, { desc }) => [desc(projects.archivedAt)],
     });
   }),
 
@@ -186,6 +199,53 @@ export const diagramRouter = router({
         .where(eq(projects.id, input.projectId));
 
       return version;
+    }),
+
+  /**
+   * プロジェクトをアーカイブ
+   * データは保持したまま一覧から非表示にする
+   */
+  archiveProject: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const project = await ctx.db.query.projects.findFirst({
+        where: eq(projects.id, input.projectId),
+      });
+
+      if (!project) {
+        throw new Error("プロジェクトが見つかりません");
+      }
+
+      const [archivedProject] = await ctx.db
+        .update(projects)
+        .set({ archivedAt: new Date() })
+        .where(eq(projects.id, input.projectId))
+        .returning();
+
+      return { success: true, archivedProject };
+    }),
+
+  /**
+   * プロジェクトのアーカイブを解除
+   */
+  unarchiveProject: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const project = await ctx.db.query.projects.findFirst({
+        where: eq(projects.id, input.projectId),
+      });
+
+      if (!project) {
+        throw new Error("プロジェクトが見つかりません");
+      }
+
+      const [restoredProject] = await ctx.db
+        .update(projects)
+        .set({ archivedAt: null })
+        .where(eq(projects.id, input.projectId))
+        .returning();
+
+      return { success: true, restoredProject };
     }),
 
   /**
