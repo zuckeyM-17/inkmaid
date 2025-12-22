@@ -114,6 +114,32 @@ unarchiveProject.mutate({ projectId: "..." });
 
 ---
 
+### diagram.renameProject
+
+プロジェクト名を変更します。
+
+| 項目 | 値 |
+|-----|-----|
+| メソッド | Mutation |
+| 入力 | `{ projectId: string, name: string }` |
+| 出力 | `{ success: boolean, project: Project }` |
+
+```tsx
+const renameProject = trpc.diagram.renameProject.useMutation({
+  onSuccess: () => {
+    refetch();
+  },
+});
+
+// 名前変更を実行
+renameProject.mutate({ 
+  projectId: "...",
+  name: "新しいプロジェクト名",
+});
+```
+
+---
+
 ### diagram.listArchivedProjects
 
 アーカイブ済みプロジェクト一覧を取得します。

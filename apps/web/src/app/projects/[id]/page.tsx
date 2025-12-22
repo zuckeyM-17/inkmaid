@@ -34,6 +34,10 @@ export default function ProjectDetailPage() {
   // AI思考パネルの表示状態
   const [showThinkingPanel, setShowThinkingPanel] = useState(true);
 
+  // プロジェクト名の編集状態
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingName, setEditingName] = useState("");
+
   // AIストリーミングフック
   const aiStream = useAIStream();
 
@@ -55,6 +59,14 @@ export default function ProjectDetailPage() {
         refetch();
       },
     });
+
+  // プロジェクト名を変更
+  const renameProject = trpc.diagram.renameProject.useMutation({
+    onSuccess: () => {
+      setIsEditingName(false);
+      refetch();
+    },
+  });
 
   // ストローク解釈完了時のコールバック
   const handleStreamComplete = useCallback(
@@ -140,6 +152,40 @@ export default function ProjectDetailPage() {
   const handleBack = useCallback(() => {
     router.push("/");
   }, [router]);
+
+  /**
+   * プロジェクト名の編集を開始
+   */
+  const handleStartEditName = useCallback(() => {
+    if (projectData) {
+      setEditingName(projectData.name);
+      setIsEditingName(true);
+    }
+  }, [projectData]);
+
+  /**
+   * プロジェクト名の編集を確定
+   */
+  const handleSaveName = useCallback(() => {
+    const trimmedName = editingName.trim();
+    if (!trimmedName || !projectId) {
+      setIsEditingName(false);
+      return;
+    }
+
+    renameProject.mutate({
+      projectId,
+      name: trimmedName,
+    });
+  }, [editingName, projectId, renameProject]);
+
+  /**
+   * プロジェクト名の編集をキャンセル
+   */
+  const handleCancelEditName = useCallback(() => {
+    setIsEditingName(false);
+    setEditingName("");
+  }, []);
 
   /**
    * 保存ボタンのハンドラ
@@ -273,9 +319,55 @@ export default function ProjectDetailPage() {
               ←
             </button>
             <span className="text-base">{typeInfo.icon}</span>
-            <h2 className="text-sm font-semibold text-gray-800">
-              {projectData.name}
-            </h2>
+
+            {/* プロジェクト名（インライン編集対応） */}
+            {isEditingName ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveName();
+                    if (e.key === "Escape") handleCancelEditName();
+                  }}
+                  className="text-sm font-semibold text-gray-800 border border-violet-300 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                  autoFocus
+                  disabled={renameProject.isPending}
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveName}
+                  disabled={renameProject.isPending}
+                  className="text-emerald-600 hover:text-emerald-700 text-sm px-1"
+                  title="保存"
+                >
+                  {renameProject.isPending ? "..." : "✓"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelEditName}
+                  disabled={renameProject.isPending}
+                  className="text-gray-400 hover:text-gray-600 text-sm px-1"
+                  title="キャンセル"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleStartEditName}
+                className="text-sm font-semibold text-gray-800 hover:text-violet-600 transition-colors group flex items-center gap-1"
+                title="クリックして名前を編集"
+              >
+                {projectData.name}
+                <span className="text-gray-300 group-hover:text-violet-400 text-xs">
+                  ✎
+                </span>
+              </button>
+            )}
+
             <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
               {typeInfo.label}
             </span>

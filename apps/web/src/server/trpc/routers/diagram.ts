@@ -249,6 +249,37 @@ export const diagramRouter = router({
     }),
 
   /**
+   * プロジェクト名を変更
+   */
+  renameProject: publicProcedure
+    .input(
+      z.object({
+        projectId: z.string().uuid(),
+        name: z.string().min(1).max(255),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const project = await ctx.db.query.projects.findFirst({
+        where: eq(projects.id, input.projectId),
+      });
+
+      if (!project) {
+        throw new Error("プロジェクトが見つかりません");
+      }
+
+      const [updatedProject] = await ctx.db
+        .update(projects)
+        .set({
+          name: input.name,
+          updatedAt: new Date(),
+        })
+        .where(eq(projects.id, input.projectId))
+        .returning();
+
+      return { success: true, project: updatedProject };
+    }),
+
+  /**
    * プロジェクトの最新バージョンとストロークデータを取得
    */
   getProjectWithStrokes: publicProcedure
