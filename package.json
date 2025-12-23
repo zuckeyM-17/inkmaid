@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "setup": "./scripts/setup-worktree.sh",
+    "setup-env": "./scripts/setup-worktree.sh",
     "setup:default": "./scripts/setup-worktree.sh --default",
-    "dev": "pnpm --filter web dev --port ${NEXT_PORT:-3000}",
+    "dev": "dotenv -e .env -- sh -c 'pnpm --filter web dev --port ${NEXT_PORT:-3000}'",
     "dev:all": "pnpm db:up && pnpm dev",
     "build": "pnpm --filter web build",
     "start": "pnpm --filter web start",
@@ -31,6 +31,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "dotenv-cli": "^8.0.0",
     "vitest": "^2.1.8"
   },
   "packageManager": "pnpm@9.15.1",
