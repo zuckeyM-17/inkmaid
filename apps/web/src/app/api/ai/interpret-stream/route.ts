@@ -1,3 +1,4 @@
+import { flushLangfuse, getLangfuse } from "@/lib/langfuse/client";
 import { DIAGRAM_TYPES, type DiagramType } from "@/server/db/schema";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
@@ -9,6 +10,20 @@ import { streamText } from "ai";
  */
 function getProvider() {
   return process.env.AI_PROVIDER ?? "anthropic";
+}
+
+/**
+ * 使用するAIモデル名を取得（ログ用）
+ */
+function getModelName(): string {
+  const provider = getProvider();
+  if (provider === "openai") {
+    return "gpt-4o-mini";
+  }
+  if (provider === "google") {
+    return "gemini-2.0-flash";
+  }
+  return "claude-sonnet-4-20250514";
 }
 
 /**
@@ -238,6 +253,19 @@ export async function POST(request: Request) {
     );
   }
 
+  // Langfuseトレースを開始
+  const langfuse = getLangfuse();
+  const trace = langfuse?.trace({
+    name: "interpret-stream",
+    metadata: {
+      diagramType,
+      strokeCount: strokes.length,
+      hasImage: !!canvasImage,
+      hasHint: !!hint,
+      provider: getProvider(),
+    },
+  });
+
   // ストロークのバウンディングボックスを計算
   const getStrokeBounds = (points: number[]) => {
     let minX = Number.POSITIVE_INFINITY;
@@ -377,16 +405,31 @@ ${userMessage}`
     );
   }
 
+  // Langfuse Generationスパンを作成
+  const systemPrompt = getStrokeInterpretationPrompt(validDiagramType);
+  const generation = trace?.generation({
+    name: "stroke-interpretation",
+    model: getModelName(),
+    input: {
+      system: systemPrompt,
+      messages: messageContent,
+    },
+    metadata: {
+      diagramType: validDiagramType,
+    },
+  });
+
   // ストリーミングでAI応答を生成
   const result = streamText({
     model: getModel(),
-    system: getStrokeInterpretationPrompt(validDiagramType),
+    system: systemPrompt,
     messages: [{ role: "user", content: messageContent }],
     providerOptions: getProviderOptions(),
   });
 
   // カスタムSSEストリームを作成（思考過程を含む）
   const encoder = new TextEncoder();
+  let fullOutput = "";
 
   const customStream = new ReadableStream({
     async start(controller) {
@@ -403,6 +446,7 @@ ${userMessage}`
             controller.enqueue(encoder.encode(`data: ${data}\n\n`));
           } else if (part.type === "text-delta") {
             // テキスト出力のデルタ
+            fullOutput += part.text;
             const data = JSON.stringify({
               type: "text-delta",
               text: part.text,
@@ -411,6 +455,15 @@ ${userMessage}`
           }
         }
 
+        // Langfuse Generationを完了としてマーク
+        generation?.end({
+          output: fullOutput,
+          level: "DEFAULT",
+        });
+
+        // Langfuseのイベントをフラッシュ
+        await flushLangfuse();
+
         // 完了シグナル
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
@@ -418,6 +471,17 @@ ${userMessage}`
         console.error("[interpret-stream] エラー:", error);
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
+
+        // Langfuse Generationをエラーとしてマーク
+        generation?.end({
+          output: errorMessage,
+          level: "ERROR",
+          statusMessage: errorMessage,
+        });
+
+        // Langfuseのイベントをフラッシュ
+        await flushLangfuse();
+
         const data = JSON.stringify({ type: "error", error: errorMessage });
         controller.enqueue(encoder.encode(`data: ${data}\n\n`));
         controller.close();
