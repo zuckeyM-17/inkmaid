@@ -10,9 +10,7 @@ let langfuseInstance: Langfuse | null = null;
  * Langfuseが有効かどうかを判定
  */
 export function isLangfuseEnabled(): boolean {
-  return !!(
-    process.env.LANGFUSE_PUBLIC_KEY && process.env.LANGFUSE_SECRET_KEY
-  );
+  return !!(process.env.LANGFUSE_PUBLIC_KEY && process.env.LANGFUSE_SECRET_KEY);
 }
 
 /**
@@ -56,4 +54,3 @@ export async function shutdownLangfuse(): Promise<void> {
     langfuseInstance = null;
   }
 }
-
