@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import DynamicHandwritingCanvas from "./DynamicHandwritingCanvas";
 import DynamicMermaidPreview from "./DynamicMermaidPreview";
-import type { Stroke } from "./HandwritingCanvas";
+import type { Stroke, ViewTransform } from "./HandwritingCanvas";
 import type { NodePosition } from "./MermaidPreview";
 
 /** AIで変換時に渡すデータ */
@@ -59,6 +59,7 @@ const SAMPLE_MERMAID_CODE = `flowchart TD
  * ハイブリッド・キャンバスコンポーネント
  * 下層：Mermaid.js によるSVGレイヤー
  * 上層：Konva.js による手書きレイヤー
+ * 両レイヤーは同期したズーム・パン操作が可能
  */
 export default function DiagramCanvas({
   width,
@@ -84,8 +85,24 @@ export default function DiagramCanvas({
   const [hint, setHint] = useState("");
   const [showHintInput, setShowHintInput] = useState(false);
 
+  // ズーム・パン状態（両レイヤーで共有）
+  const [viewTransform, setViewTransform] = useState<ViewTransform>({
+    scale: 1,
+    x: 0,
+    y: 0,
+  });
+
   // refs
   const mermaidContainerRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * キャンバスサイズが変更されたときにviewTransformをリセット
+   * サイドバーの開閉などでサイズが変わった場合に座標ズレを防ぐ
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: width/heightはpropsであり、変更時にリセットが必要
+  useEffect(() => {
+    setViewTransform({ scale: 1, x: 0, y: 0 });
+  }, [width, height]);
 
   /**
    * initialMermaidCodeが外部から変更された場合に内部状態を同期
@@ -117,6 +134,16 @@ export default function DiagramCanvas({
     setStrokes(newStrokes);
     setHasUnsavedChanges(true);
   }, []);
+
+  /**
+   * ビュー変換が変更されたときのハンドラ
+   */
+  const handleViewTransformChange = useCallback(
+    (newTransform: ViewTransform) => {
+      setViewTransform(newTransform);
+    },
+    [],
+  );
 
   /**
    * Mermaidコードの更新
@@ -252,6 +279,12 @@ export default function DiagramCanvas({
     generateCanvasImage,
   ]);
 
+  // Mermaidレイヤーに適用するCSS transform
+  const mermaidTransformStyle = {
+    transform: `translate(${viewTransform.x}px, ${viewTransform.y}px) scale(${viewTransform.scale})`,
+    transformOrigin: "0 0",
+  };
+
   return (
     <div className="flex flex-col gap-4">
       {/* メインツールバー */}
@@ -359,10 +392,11 @@ export default function DiagramCanvas({
           height: `${height}px`,
         }}
       >
-        {/* 下層: Mermaid SVG レイヤー */}
+        {/* 下層: Mermaid SVG レイヤー（ズーム・パン同期） */}
         <div
           ref={mermaidContainerRef}
           className="absolute inset-0 pointer-events-none"
+          style={mermaidTransformStyle}
         >
           <DynamicMermaidPreview
             code={mermaidCode}
@@ -383,6 +417,8 @@ export default function DiagramCanvas({
             strokeWidth={strokeWidth}
             initialStrokes={initialStrokes}
             onStrokesChange={handleStrokesChange}
+            viewTransform={viewTransform}
+            onViewTransformChange={handleViewTransformChange}
           />
         </div>
 
@@ -412,7 +448,7 @@ export default function DiagramCanvas({
 
         {/* 未保存の変更インジケータ */}
         {hasUnsavedChanges && (
-          <div className="absolute top-3 left-3 z-20">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20">
             <div className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded-full flex items-center gap-1">
               <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
               未保存
@@ -420,7 +456,6 @@ export default function DiagramCanvas({
           </div>
         )}
 
-        {/* 変換中オーバーレイ */}
         {/* 変換中オーバーレイ */}
         {isConverting && (
           <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-30">

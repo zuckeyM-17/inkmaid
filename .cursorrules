@@ -157,3 +157,35 @@ export type NewProject = typeof projects.$inferInsert;
    - 新しいタスクがあれば優先度に応じて追加
    - 「最終更新」の日付を更新
 
+## 作業完了前のCIチェック（必須）
+
+**作業を完了する前に、以下のコマンドを実行してCIと同じチェックを通すこと：**
+
+```bash
+# 1. Lint チェック（Biome）
+pnpm lint
+
+# 2. 型チェック（TypeScript）
+pnpm --filter web exec tsc --noEmit
+
+# 3. ビルドチェック（オプション：大きな変更の場合）
+# DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy pnpm build
+```
+
+### チェック項目の説明
+
+| チェック | コマンド | 説明 |
+|---------|---------|------|
+| Lint | `pnpm lint` | Biomeによるコードスタイル・構文チェック |
+| Type Check | `pnpm --filter web exec tsc --noEmit` | TypeScriptの型エラーチェック |
+| Build | `pnpm build` | Next.jsのビルドが成功するか確認 |
+
+### 自動修正が必要な場合
+
+```bash
+# Biomeの自動修正
+pnpm lint:fix
+```
+
+**注意**: これらのチェックに失敗するとCIが失敗します。PRを作成する前に必ず通過させてください。
+
