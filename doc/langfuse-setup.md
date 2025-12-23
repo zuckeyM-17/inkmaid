@@ -5,14 +5,40 @@
 Langfuseは、LLMアプリケーションのオブザーバビリティと分析を提供するオープンソースツールです。
 InkmaidではAI呼び出しのトレーシング、コスト分析、プロンプト改善に使用します。
 
+## Git Worktreeでの運用について
+
+**重要**: Langfuseは全worktreeで**共有**するサービスです。
+
+- **アプリケーションDB（PostgreSQL）**: worktreeごとに個別
+- **Langfuse一式**: 全worktreeで1つを共有
+
+これにより、複数のworktreeでもリソース消費を抑え、トレースデータを一元管理できます。
+
 ## ローカル開発環境でのセットアップ
 
-### 1. Langfuseサービスを起動
+### 1. 環境変数を設定
+
+Langfuseには暗号化キーが必要です。`.env` ファイルに設定してください：
+
+```bash
+# 暗号化キーを生成
+openssl rand -hex 32
+
+# .env に追加
+LANGFUSE_ENCRYPTION_KEY=生成したキー
+```
+
+### 2. Langfuseサービスを起動
 
 ```bash
 # プロジェクトルートで実行
-docker compose up -d
+pnpm langfuse:up
+
+# または直接
+docker compose --profile langfuse up -d
 ```
+
+**注意**: 通常の `pnpm db:up` ではLangfuseは起動しません。明示的に `pnpm langfuse:up` を実行してください。
 
 これにより以下のサービスが起動します：
 - **langfuse**: Langfuse Web UI（http://localhost:3001）
@@ -88,16 +114,38 @@ LANGFUSE_PORT=3002
 LANGFUSE_DB_PORT=5434
 ```
 
+## コマンドリファレンス
+
+| コマンド | 説明 |
+|---------|------|
+| `pnpm langfuse:up` | Langfuseを起動 |
+| `pnpm langfuse:down` | Langfuseを停止 |
+| `pnpm langfuse:logs` | Langfuseのログを確認 |
+| `pnpm langfuse:reset` | Langfuseのデータを削除して再起動 |
+
 ## トラブルシューティング
 
 ### Langfuseが起動しない
 
 ```bash
 # コンテナのログを確認
-docker compose logs langfuse
+pnpm langfuse:logs
 
 # すべてのコンテナの状態を確認
-docker compose ps
+docker compose --profile langfuse ps
+```
+
+### コンテナ名の競合エラー
+
+```
+Error: container name "inkmaid-langfuse-db" is already in use
+```
+
+古いコンテナが残っている場合は削除してください：
+
+```bash
+docker rm -f inkmaid-langfuse-db inkmaid-langfuse-clickhouse inkmaid-langfuse-redis inkmaid-langfuse-minio inkmaid-langfuse-worker inkmaid-langfuse
+pnpm langfuse:up
 ```
 
 ### トレースが表示されない

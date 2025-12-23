@@ -1,4 +1,7 @@
 services:
+  # =========================================
+  # PostgreSQL - アプリケーションDB（worktreeごとに個別）
+  # =========================================
   postgres:
     image: postgres:16-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-inkmaid}-db
@@ -20,9 +23,19 @@ services:
   # =========================================
   # Langfuse - LLMオブザーバビリティ
   # =========================================
+  # 注意: Langfuseは全worktreeで共有するサービスです
+  # コンテナ名とボリューム名は固定（worktreeに依存しない）
+  # 
+  # 起動方法:
+  #   docker compose --profile langfuse up -d
+  # または:
+  #   pnpm langfuse:up
+  # =========================================
+
   langfuse-postgres:
     image: postgres:16-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-inkmaid}-langfuse-db
+    container_name: inkmaid-langfuse-db
+    profiles: [langfuse]
     restart: unless-stopped
     ports:
       - "${LANGFUSE_DB_PORT:-5433}:5432"
@@ -40,7 +53,8 @@ services:
 
   langfuse-clickhouse:
     image: clickhouse/clickhouse-server
-    container_name: ${COMPOSE_PROJECT_NAME:-inkmaid}-langfuse-clickhouse
+    container_name: inkmaid-langfuse-clickhouse
+    profiles: [langfuse]
     restart: unless-stopped
     user: "101:101"
     environment:
@@ -62,7 +76,8 @@ services:
 
   langfuse-redis:
     image: redis:7-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-inkmaid}-langfuse-redis
+    container_name: inkmaid-langfuse-redis
+    profiles: [langfuse]
     restart: unless-stopped
     command: redis-server --requirepass langfuse_redis --maxmemory-policy noeviction
     ports:
@@ -75,7 +90,8 @@ services:
 
   langfuse-minio:
     image: minio/minio
-    container_name: ${COMPOSE_PROJECT_NAME:-inkmaid}-langfuse-minio
+    container_name: inkmaid-langfuse-minio
+    profiles: [langfuse]
     restart: unless-stopped
     entrypoint: sh
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
@@ -96,7 +112,8 @@ services:
 
   langfuse-worker:
     image: langfuse/langfuse-worker:3
-    container_name: ${COMPOSE_PROJECT_NAME:-inkmaid}-langfuse-worker
+    container_name: inkmaid-langfuse-worker
+    profiles: [langfuse]
     restart: unless-stopped
     depends_on:
       langfuse-postgres:
@@ -114,7 +131,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@langfuse-postgres:5432/postgres
       # Auth
       SALT: ${LANGFUSE_SALT:-langfuse-local-dev-salt}
-      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:?LANGFUSE_ENCRYPTION_KEY is required. Generate with: openssl rand -hex 32}
+      ENCRYPTION_KEY: "${LANGFUSE_ENCRYPTION_KEY:?LANGFUSE_ENCRYPTION_KEY is required. Generate with: openssl rand -hex 32}"
       # ClickHouse
       CLICKHOUSE_URL: http://langfuse-clickhouse:8123
       CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
@@ -146,7 +163,8 @@ services:
 
   langfuse:
     image: langfuse/langfuse:3
-    container_name: ${COMPOSE_PROJECT_NAME:-inkmaid}-langfuse
+    container_name: inkmaid-langfuse
+    profiles: [langfuse]
     restart: unless-stopped
     ports:
       - "${LANGFUSE_PORT:-3001}:3000"
@@ -171,13 +189,16 @@ services:
       start_period: 120s
 
 volumes:
+  # アプリケーションDB（worktreeごとに個別）
   postgres_data:
     name: ${COMPOSE_PROJECT_NAME:-inkmaid}_postgres_data
+
+  # Langfuse関連（全worktreeで共有、固定名）
   langfuse_postgres_data:
-    name: ${COMPOSE_PROJECT_NAME:-inkmaid}_langfuse_postgres_data
+    name: inkmaid_langfuse_postgres_data
   langfuse_clickhouse_data:
-    name: ${COMPOSE_PROJECT_NAME:-inkmaid}_langfuse_clickhouse_data
+    name: inkmaid_langfuse_clickhouse_data
   langfuse_clickhouse_logs:
-    name: ${COMPOSE_PROJECT_NAME:-inkmaid}_langfuse_clickhouse_logs
+    name: inkmaid_langfuse_clickhouse_logs
   langfuse_minio_data:
-    name: ${COMPOSE_PROJECT_NAME:-inkmaid}_langfuse_minio_data
+    name: inkmaid_langfuse_minio_data
