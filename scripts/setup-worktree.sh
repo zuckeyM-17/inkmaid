@@ -107,8 +107,23 @@ POSTGRES_PASSWORD=inkmaid_password
 POSTGRES_DB=inkmaid
 EOF
 
-# apps/web/.env.local を作成
+# apps/web/.env.local を作成（既存のAPIキーを保持）
 WEB_ENV_FILE="${PROJECT_ROOT}/apps/web/.env.local"
+
+# 既存のAPIキーを抽出（存在する場合）
+EXISTING_ANTHROPIC_KEY=""
+EXISTING_OPENAI_KEY=""
+EXISTING_GOOGLE_KEY=""
+EXISTING_AI_PROVIDER=""
+
+if [ -f "${WEB_ENV_FILE}" ]; then
+    echo -e "${YELLOW}既存の .env.local を検出、APIキーを保持します${NC}"
+    EXISTING_ANTHROPIC_KEY=$(grep "^ANTHROPIC_API_KEY=" "${WEB_ENV_FILE}" 2>/dev/null | cut -d'=' -f2- || true)
+    EXISTING_OPENAI_KEY=$(grep "^OPENAI_API_KEY=" "${WEB_ENV_FILE}" 2>/dev/null | cut -d'=' -f2- || true)
+    EXISTING_GOOGLE_KEY=$(grep "^GOOGLE_GENERATIVE_AI_API_KEY=" "${WEB_ENV_FILE}" 2>/dev/null | cut -d'=' -f2- || true)
+    EXISTING_AI_PROVIDER=$(grep "^AI_PROVIDER=" "${WEB_ENV_FILE}" 2>/dev/null | cut -d'=' -f2- || true)
+fi
+
 echo -e "${GREEN}作成: ${WEB_ENV_FILE}${NC}"
 cat > "${WEB_ENV_FILE}" << EOF
 # ===========================================
@@ -119,11 +134,26 @@ cat > "${WEB_ENV_FILE}" << EOF
 # データベース接続
 DATABASE_URL=postgresql://inkmaid:inkmaid_password@localhost:${FINAL_DB_PORT}/inkmaid
 
-# AI API Keys（必要に応じて設定）
-# ANTHROPIC_API_KEY=
-# OPENAI_API_KEY=
-# GOOGLE_GENERATIVE_AI_API_KEY=
+# AI プロバイダー設定（anthropic / openai / google）
+AI_PROVIDER=${EXISTING_AI_PROVIDER:-anthropic}
+
+# AI API Keys
+ANTHROPIC_API_KEY=${EXISTING_ANTHROPIC_KEY}
+OPENAI_API_KEY=${EXISTING_OPENAI_KEY}
+GOOGLE_GENERATIVE_AI_API_KEY=${EXISTING_GOOGLE_KEY}
 EOF
+
+# APIキーが設定されていない場合の警告
+if [ -z "${EXISTING_ANTHROPIC_KEY}" ] && [ -z "${EXISTING_OPENAI_KEY}" ] && [ -z "${EXISTING_GOOGLE_KEY}" ]; then
+    echo ""
+    echo -e "${YELLOW}⚠️  注意: AI APIキーが設定されていません${NC}"
+    echo "    手書き認識を使用するには、以下のいずれかを設定してください:"
+    echo "    - ANTHROPIC_API_KEY（推奨）"
+    echo "    - OPENAI_API_KEY"
+    echo "    - GOOGLE_GENERATIVE_AI_API_KEY"
+    echo ""
+    echo "    設定方法: ${WEB_ENV_FILE} を直接編集"
+fi
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

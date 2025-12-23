@@ -9,7 +9,7 @@ import { useAIStream } from "@/lib/hooks/useAIStream";
 import { trpc } from "@/lib/trpc/client";
 import { DIAGRAM_TYPE_INFO, type DiagramType } from "@/server/db/schema";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * プロジェクト詳細ページ
@@ -44,6 +44,39 @@ export default function ProjectDetailPage() {
 
   // AIストリーミングフック
   const aiStream = useAIStream();
+
+  // キャンバスコンテナのサイズ管理
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 1000, height: 600 });
+
+  // コンテナサイズの監視
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+
+    const updateSize = () => {
+      const rect = container.getBoundingClientRect();
+      // 幅はコンテナに合わせる（最低800px）、高さはウィンドウ高さの70%程度を確保
+      const newWidth = Math.max(800, Math.floor(rect.width) || 1000);
+      const newHeight = Math.max(500, Math.floor(window.innerHeight * 0.7));
+      setCanvasSize({ width: newWidth, height: newHeight });
+    };
+
+    // 初回サイズ設定
+    updateSize();
+
+    // リサイズ監視
+    const resizeObserver = new ResizeObserver(updateSize);
+    resizeObserver.observe(container);
+
+    // ウィンドウリサイズも監視
+    window.addEventListener("resize", updateSize);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateSize);
+    };
+  }, []);
 
   // プロジェクト詳細（ストローク含む）を取得
   const {
@@ -434,21 +467,23 @@ export default function ProjectDetailPage() {
           )}
 
           {/* メインキャンバス */}
-          <DynamicDiagramCanvas
-            key={`${projectId}-${canvasKey}`}
-            width={showThinkingPanel ? 900 : 1100}
-            height={600}
-            strokeColor="#7c3aed"
-            strokeWidth={3}
-            initialMermaidCode={editingMermaidCode}
-            initialStrokes={editingStrokes}
-            isSaving={saveDiagramWithStrokes.isPending}
-            isConverting={aiStream.isProcessing}
-            isFixingError={fixMermaidError.isPending}
-            onSave={handleSave}
-            onConvertWithAI={handleConvertWithAI}
-            onMermaidParseError={handleMermaidParseError}
-          />
+          <div ref={canvasContainerRef} className="w-full">
+            <DynamicDiagramCanvas
+              key={`${projectId}-${canvasKey}`}
+              width={canvasSize.width}
+              height={canvasSize.height}
+              strokeColor="#7c3aed"
+              strokeWidth={3}
+              initialMermaidCode={editingMermaidCode}
+              initialStrokes={editingStrokes}
+              isSaving={saveDiagramWithStrokes.isPending}
+              isConverting={aiStream.isProcessing}
+              isFixingError={fixMermaidError.isPending}
+              onSave={handleSave}
+              onConvertWithAI={handleConvertWithAI}
+              onMermaidParseError={handleMermaidParseError}
+            />
+          </div>
 
           {/* デバッグ情報 */}
           <details className="mt-4 bg-gray-100 rounded-lg p-3 text-xs">
