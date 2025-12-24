@@ -1,7 +1,7 @@
 "use client";
 
 import { trpc } from "@/lib/trpc/client";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type VersionHistoryPanelProps = {
   /** プロジェクトID */
@@ -12,6 +12,14 @@ type VersionHistoryPanelProps = {
   onClose: () => void;
   /** ロールバック完了時のコールバック */
   onRollbackComplete?: () => void;
+  /** バージョンプレビュー時のコールバック（Mermaidコードとストロークを渡す） */
+  onVersionPreview?: (data: {
+    versionId: number;
+    mermaidCode: string;
+    strokes: Array<{ points: number[]; color: string; width: number }>;
+  }) => void;
+  /** プレビューをキャンセル */
+  onPreviewCancel?: () => void;
 };
 
 /**
@@ -67,6 +75,8 @@ export default function VersionHistoryPanel({
   isOpen,
   onClose,
   onRollbackComplete,
+  onVersionPreview,
+  onPreviewCancel,
 }: VersionHistoryPanelProps) {
   // 選択中のバージョン（プレビュー用）
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(
@@ -107,10 +117,39 @@ export default function VersionHistoryPanel({
   /**
    * バージョンを選択
    */
-  const handleSelectVersion = useCallback((versionId: number) => {
-    setSelectedVersionId((prev) => (prev === versionId ? null : versionId));
-    setConfirmingRollback(null);
-  }, []);
+  const handleSelectVersion = useCallback(
+    (versionId: number) => {
+      const newSelectedId =
+        selectedVersionId === versionId ? null : versionId;
+      setSelectedVersionId(newSelectedId);
+      setConfirmingRollback(null);
+
+      // プレビューをキャンセル
+      if (!newSelectedId) {
+        onPreviewCancel?.();
+      }
+    },
+    [selectedVersionId, onPreviewCancel],
+  );
+
+  /**
+   * 選択中のバージョンの詳細が取得できたらプレビューを通知
+   */
+  useEffect(() => {
+    if (selectedVersionId && selectedVersion) {
+      // strokesの型を適切に変換
+      const strokes = (selectedVersion.strokes || []) as Array<{
+        points: number[];
+        color: string;
+        width: number;
+      }>;
+      onVersionPreview?.({
+        versionId: selectedVersionId,
+        mermaidCode: selectedVersion.mermaidCode,
+        strokes,
+      });
+    }
+  }, [selectedVersionId, selectedVersion, onVersionPreview]);
 
   /**
    * ロールバックを実行
