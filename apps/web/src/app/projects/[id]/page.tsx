@@ -551,10 +551,10 @@ export default function ProjectDetailPage() {
               height={canvasSize.height}
               strokeColor="#7c3aed"
               strokeWidth={3}
-              initialMermaidCode={
-                previewMermaidCode ?? editingMermaidCode
+              initialMermaidCode={previewMermaidCode ?? editingMermaidCode}
+              initialStrokes={
+                previewStrokes.length > 0 ? previewStrokes : editingStrokes
               }
-              initialStrokes={previewStrokes.length > 0 ? previewStrokes : editingStrokes}
               isSaving={saveDiagramWithStrokes.isPending}
               isConverting={aiStream.isProcessing}
               isFixingError={fixMermaidError.isPending}

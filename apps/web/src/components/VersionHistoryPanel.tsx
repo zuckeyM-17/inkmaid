@@ -119,8 +119,7 @@ export default function VersionHistoryPanel({
    */
   const handleSelectVersion = useCallback(
     (versionId: number) => {
-      const newSelectedId =
-        selectedVersionId === versionId ? null : versionId;
+      const newSelectedId = selectedVersionId === versionId ? null : versionId;
       setSelectedVersionId(newSelectedId);
       setConfirmingRollback(null);
 
