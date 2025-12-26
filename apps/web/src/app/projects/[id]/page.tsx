@@ -42,6 +42,13 @@ export default function ProjectDetailPage() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingName, setEditingName] = useState("");
 
+  // バージョンプレビュー状態
+  const [previewVersionId, setPreviewVersionId] = useState<number | null>(null);
+  const [previewMermaidCode, setPreviewMermaidCode] = useState<string | null>(
+    null,
+  );
+  const [previewStrokes, setPreviewStrokes] = useState<Stroke[]>([]);
+
   // AIストリーミングフック
   const aiStream = useAIStream();
 
@@ -300,6 +307,51 @@ export default function ProjectDetailPage() {
     [errorRetryCount, fixMermaidError],
   );
 
+  /**
+   * バージョンプレビュー時のコールバック
+   */
+  const handleVersionPreview = useCallback(
+    (data: {
+      versionId: number;
+      mermaidCode: string;
+      strokes: Array<{ points: number[]; color: string; width: number }>;
+    }) => {
+      setPreviewVersionId(data.versionId);
+      setPreviewMermaidCode(data.mermaidCode);
+      setPreviewStrokes(
+        data.strokes.map((s) => ({
+          id: `preview-${Date.now()}-${Math.random()}`,
+          points: s.points,
+          color: s.color,
+          strokeWidth: s.width,
+        })),
+      );
+      setCanvasKey((prev) => prev + 1);
+    },
+    [],
+  );
+
+  /**
+   * プレビューをキャンセル
+   */
+  const handlePreviewCancel = useCallback(() => {
+    setPreviewVersionId(null);
+    setPreviewMermaidCode(null);
+    setPreviewStrokes([]);
+    setCanvasKey((prev) => prev + 1);
+  }, []);
+
+  /**
+   * ロールバック完了時のコールバック
+   */
+  const handleRollbackComplete = useCallback(() => {
+    // ロールバック完了後にデータを再取得
+    refetch();
+    setCanvasKey((prev) => prev + 1);
+    // プレビューを解除
+    handlePreviewCancel();
+  }, [refetch, handlePreviewCancel]);
+
   // ローディング中
   if (isLoading) {
     return (
@@ -466,6 +518,31 @@ export default function ProjectDetailPage() {
             </div>
           )}
 
+          {/* プレビューモードのバナー */}
+          {previewVersionId && previewMermaidCode && (
+            <div className="mb-4 bg-amber-50 rounded-xl border border-amber-200 p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-lg">👁️</span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800 mb-1">
+                    バージョン v{previewVersionId} をプレビュー中
+                  </p>
+                  <p className="text-xs text-amber-700">
+                    この状態に戻すには、右側のバージョン履歴パネルで「この状態に戻す」ボタンをクリックしてください。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handlePreviewCancel}
+                  className="text-amber-400 hover:text-amber-600 text-lg"
+                  title="プレビューをキャンセル"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* メインキャンバス */}
           <div ref={canvasContainerRef} className="w-full">
             <DynamicDiagramCanvas
@@ -474,8 +551,10 @@ export default function ProjectDetailPage() {
               height={canvasSize.height}
               strokeColor="#7c3aed"
               strokeWidth={3}
-              initialMermaidCode={editingMermaidCode}
-              initialStrokes={editingStrokes}
+              initialMermaidCode={previewMermaidCode ?? editingMermaidCode}
+              initialStrokes={
+                previewStrokes.length > 0 ? previewStrokes : editingStrokes
+              }
               isSaving={saveDiagramWithStrokes.isPending}
               isConverting={aiStream.isProcessing}
               isFixingError={fixMermaidError.isPending}
@@ -522,11 +601,9 @@ export default function ProjectDetailPage() {
         projectId={projectId}
         isOpen={showVersionPanel}
         onClose={() => setShowVersionPanel(false)}
-        onRollbackComplete={() => {
-          // ロールバック完了後にデータを再取得
-          refetch();
-          setCanvasKey((prev) => prev + 1);
-        }}
+        onRollbackComplete={handleRollbackComplete}
+        onVersionPreview={handleVersionPreview}
+        onPreviewCancel={handlePreviewCancel}
       />
 
       {/* 右サイドバー: AI思考ログパネル */}
