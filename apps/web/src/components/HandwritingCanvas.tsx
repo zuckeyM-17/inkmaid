@@ -147,6 +147,15 @@ const HandwritingCanvas = forwardRef<
     setStrokes(initialStrokes);
   }, [initialStrokes]);
 
+  // キャンバスサイズが変更されたときにviewTransformをリセット
+  // リサイズ時にストロークがずれるのを防ぐ
+  // biome-ignore lint/correctness/useExhaustiveDependencies: width/heightはpropsであり、変更時にリセットが必要
+  useEffect(() => {
+    if (!externalViewTransform) {
+      setInternalViewTransform({ scale: 1, x: 0, y: 0 });
+    }
+  }, [width, height, externalViewTransform]);
+
   // スペースキーのイベントリスナー
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -465,55 +474,57 @@ const HandwritingCanvas = forwardRef<
       }}
     >
       {/* ツールバー */}
-      <div className="absolute top-3 right-3 z-10 flex gap-2">
-        <button
-          type="button"
-          onClick={undoLastStroke}
-          disabled={strokes.length === 0}
-          className="px-3 py-1.5 text-sm bg-white/90 backdrop-blur border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          title="元に戻す (Undo)"
-        >
-          ↶ 戻す
-        </button>
-        <button
-          type="button"
-          onClick={clearCanvas}
-          disabled={strokes.length === 0}
-          className="px-3 py-1.5 text-sm bg-white/90 backdrop-blur border border-gray-200 rounded-lg shadow-sm hover:bg-red-50 hover:border-red-200 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          title="全てクリア"
-        >
-          🗑 クリア
-        </button>
-      </div>
+      <div className="absolute top-3 right-3 z-10 flex flex-col gap-2">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={undoLastStroke}
+            disabled={strokes.length === 0}
+            className="px-3 py-1.5 text-sm bg-white/90 backdrop-blur border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="元に戻す (Undo)"
+          >
+            ↶ 戻す
+          </button>
+          <button
+            type="button"
+            onClick={clearCanvas}
+            disabled={strokes.length === 0}
+            className="px-3 py-1.5 text-sm bg-white/90 backdrop-blur border border-gray-200 rounded-lg shadow-sm hover:bg-red-50 hover:border-red-200 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="全てクリア"
+          >
+            🗑 クリア
+          </button>
+        </div>
 
-      {/* ズームコントロール */}
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-white/90 backdrop-blur border border-gray-200 rounded-lg shadow-sm">
-        <button
-          type="button"
-          onClick={handleZoomOut}
-          disabled={viewTransform.scale <= MIN_SCALE}
-          className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-l-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          title="ズームアウト"
-        >
-          −
-        </button>
-        <button
-          type="button"
-          onClick={handleZoomReset}
-          className="px-2 h-8 text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors min-w-[50px]"
-          title="リセット (100%)"
-        >
-          {zoomPercentage}%
-        </button>
-        <button
-          type="button"
-          onClick={handleZoomIn}
-          disabled={viewTransform.scale >= MAX_SCALE}
-          className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-r-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          title="ズームイン"
-        >
-          +
-        </button>
+        {/* ズームコントロール */}
+        <div className="flex items-center gap-1 bg-white/90 backdrop-blur border border-gray-200 rounded-lg shadow-sm">
+          <button
+            type="button"
+            onClick={handleZoomOut}
+            disabled={viewTransform.scale <= MIN_SCALE}
+            className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-l-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="ズームアウト"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onClick={handleZoomReset}
+            className="px-2 h-8 text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors min-w-[50px]"
+            title="リセット (100%)"
+          >
+            {zoomPercentage}%
+          </button>
+          <button
+            type="button"
+            onClick={handleZoomIn}
+            disabled={viewTransform.scale >= MAX_SCALE}
+            className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-r-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="ズームイン"
+          >
+            +
+          </button>
+        </div>
       </div>
 
       {/* パン操作ヒント */}

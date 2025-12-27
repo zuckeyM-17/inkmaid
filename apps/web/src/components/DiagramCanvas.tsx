@@ -35,8 +35,6 @@ type DiagramCanvasProps = {
   isConverting?: boolean;
   /** エラー修正中かどうか */
   isFixingError?: boolean;
-  /** Mermaidコードが更新されたときのコールバック */
-  onMermaidCodeChange?: (code: string) => void;
   /** 保存ボタンが押されたときのコールバック */
   onSave?: (data: { mermaidCode: string; strokes: Stroke[] }) => void;
   /** AIで変換ボタンが押されたときのコールバック（ノード位置情報付き） */
@@ -71,7 +69,6 @@ export default function DiagramCanvas({
   isSaving = false,
   isConverting = false,
   isFixingError = false,
-  onMermaidCodeChange,
   onSave,
   onConvertWithAI,
   onMermaidParseError,
@@ -79,8 +76,6 @@ export default function DiagramCanvas({
   const [mermaidCode, setMermaidCode] = useState(initialMermaidCode);
   const [strokes, setStrokes] = useState<Stroke[]>(initialStrokes);
   const [nodePositions, setNodePositions] = useState<NodePosition[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingCode, setEditingCode] = useState(initialMermaidCode);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [hint, setHint] = useState("");
   const [showHintInput, setShowHintInput] = useState(false);
@@ -94,6 +89,37 @@ export default function DiagramCanvas({
 
   // refs
   const mermaidContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [actualSize, setActualSize] = useState({ width, height });
+
+  // 親要素のサイズを監視して実際のサイズを更新
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateSize = () => {
+      const rect = container.getBoundingClientRect();
+      setActualSize({
+        width: Math.floor(rect.width),
+        height: Math.floor(rect.height),
+      });
+    };
+
+    // 初回サイズ設定
+    updateSize();
+
+    // リサイズ監視
+    const resizeObserver = new ResizeObserver(updateSize);
+    resizeObserver.observe(container);
+
+    // ウィンドウリサイズも監視
+    window.addEventListener("resize", updateSize);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateSize);
+    };
+  }, []);
 
   /**
    * キャンバスサイズが変更されたときにviewTransformをリセット
@@ -110,7 +136,6 @@ export default function DiagramCanvas({
    */
   useEffect(() => {
     setMermaidCode(initialMermaidCode);
-    setEditingCode(initialMermaidCode);
   }, [initialMermaidCode]);
 
   /**
@@ -144,24 +169,6 @@ export default function DiagramCanvas({
     },
     [],
   );
-
-  /**
-   * Mermaidコードの更新
-   */
-  const handleCodeUpdate = useCallback(() => {
-    setMermaidCode(editingCode);
-    setIsEditing(false);
-    setHasUnsavedChanges(true);
-    onMermaidCodeChange?.(editingCode);
-  }, [editingCode, onMermaidCodeChange]);
-
-  /**
-   * 編集をキャンセル
-   */
-  const handleCancelEdit = useCallback(() => {
-    setEditingCode(mermaidCode);
-    setIsEditing(false);
-  }, [mermaidCode]);
 
   /**
    * 保存ボタンのハンドラ
@@ -294,112 +301,12 @@ export default function DiagramCanvas({
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* メインツールバー */}
-      <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 p-3">
-        <div className="flex items-center gap-3">
-          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-            <span>✍️</span> 手書きキャンバス
-          </h3>
-          <div className="text-xs text-gray-400">
-            図形を描いて「AIで変換」をクリック
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* AIで変換ボタン */}
-          <button
-            type="button"
-            onClick={() =>
-              strokes.length > 0
-                ? showHintInput
-                  ? handleConvertWithAI()
-                  : setShowHintInput(true)
-                : undefined
-            }
-            disabled={isConverting || strokes.length === 0}
-            className="px-4 py-2 text-sm bg-linear-to-r from-violet-600 to-fuchsia-600 text-white font-medium rounded-lg hover:from-violet-700 hover:to-fuchsia-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 shadow-md shadow-violet-200"
-          >
-            {isConverting ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                変換中...
-              </>
-            ) : (
-              <>🪄 AIで変換</>
-            )}
-          </button>
-
-          {/* 保存ボタン */}
-          {onSave && (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving || !hasUnsavedChanges}
-              className="px-4 py-2 text-sm bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-            >
-              {isSaving ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-gray-400/30 border-t-gray-600 rounded-full animate-spin" />
-                  保存中...
-                </>
-              ) : (
-                <>💾 保存</>
-              )}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ヒント入力（オプション） */}
-      {showHintInput && (
-        <div className="bg-violet-50 rounded-xl border border-violet-200 p-4 flex gap-3 items-end">
-          <div className="flex-1">
-            <label
-              htmlFor="hint-input"
-              className="block text-xs font-medium text-violet-700 mb-1.5"
-            >
-              💡 補足説明（オプション）
-            </label>
-            <input
-              id="hint-input"
-              type="text"
-              value={hint}
-              onChange={(e) => setHint(e.target.value)}
-              placeholder="例: 上の四角はユーザー認証、矢印はデータの流れ..."
-              className="w-full px-3 py-2 text-sm border border-violet-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
-              onKeyDown={(e) => e.key === "Enter" && handleConvertWithAI()}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={handleConvertWithAI}
-            disabled={isConverting}
-            className="px-4 py-2 text-sm bg-violet-600 text-white font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-all"
-          >
-            変換実行
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setShowHintInput(false);
-              setHint("");
-            }}
-            className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            キャンセル
-          </button>
-        </div>
-      )}
-
+    <div
+      ref={containerRef}
+      className="absolute inset-0 w-full h-full overflow-hidden bg-white"
+    >
       {/* ハイブリッドキャンバス */}
-      <div
-        className="relative overflow-hidden bg-white rounded-xl border-2 border-dashed border-gray-300 hover:border-violet-300 transition-colors"
-        style={{
-          width: `${width}px`,
-          height: `${height}px`,
-        }}
-      >
+      <div className="absolute inset-0 overflow-hidden">
         {/* 下層: Mermaid SVG レイヤー（ズーム・パン同期） */}
         <div
           ref={mermaidContainerRef}
@@ -408,8 +315,8 @@ export default function DiagramCanvas({
         >
           <DynamicMermaidPreview
             code={mermaidCode}
-            width={width}
-            height={height}
+            width={actualSize.width}
+            height={actualSize.height}
             id="diagram-preview"
             onParseError={onMermaidParseError}
             onRenderSuccess={handleRenderSuccess}
@@ -419,8 +326,8 @@ export default function DiagramCanvas({
         {/* 上層: 手書きレイヤー */}
         <div className="absolute inset-0">
           <DynamicHandwritingCanvas
-            width={width}
-            height={height}
+            width={actualSize.width}
+            height={actualSize.height}
             strokeColor={strokeColor}
             strokeWidth={strokeWidth}
             initialStrokes={initialStrokes}
@@ -445,6 +352,108 @@ export default function DiagramCanvas({
             {strokes.length} ストローク
           </div>
         </div>
+
+        {/* ツールバー（左上） */}
+        <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowHintInput(!showHintInput)}
+            className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1.5 transition-all ${
+              showHintInput
+                ? "bg-violet-100 text-violet-700 border border-violet-200"
+                : "bg-white/90 backdrop-blur border border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
+            title="補足説明を追加"
+          >
+            <span>💡</span>
+            補足説明
+          </button>
+
+          {/* AIで変換ボタン */}
+          <button
+            type="button"
+            onClick={handleConvertWithAI}
+            disabled={isConverting || strokes.length === 0}
+            className="shrink-0 px-4 py-1.5 text-xs font-medium rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:from-violet-700 hover:to-fuchsia-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 shadow-md shadow-violet-200"
+          >
+            {isConverting ? (
+              <>
+                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                変換中...
+              </>
+            ) : (
+              <>
+                <span>🪄</span>
+                AIで変換
+              </>
+            )}
+          </button>
+
+          {/* 保存ボタン */}
+          {onSave && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving || !hasUnsavedChanges}
+              className="shrink-0 px-4 py-1.5 text-xs font-medium rounded-lg bg-white/90 backdrop-blur border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+            >
+              {isSaving ? (
+                <>
+                  <span className="w-3 h-3 border-2 border-gray-400/30 border-t-gray-600 rounded-full animate-spin" />
+                  保存中...
+                </>
+              ) : (
+                <>
+                  <span>💾</span>
+                  保存
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* 補足説明入力エリア（オーバーレイ） */}
+        {showHintInput && (
+          <div className="absolute top-16 left-3 z-30 w-[50vw] max-w-[800px] bg-white rounded-xl border border-violet-200 shadow-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <label
+                htmlFor="hint-input"
+                className="text-xs font-medium text-violet-700 flex items-center gap-1.5"
+              >
+                <span>💡</span>
+                補足説明（オプション）
+              </label>
+            </div>
+            <textarea
+              id="hint-input"
+              value={hint}
+              onChange={(e) => setHint(e.target.value)}
+              placeholder="例: 上の四角はユーザー認証、矢印はデータの流れ..."
+              rows={15}
+              className="w-full px-3 py-2 text-sm border border-violet-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-y min-h-[200px]"
+            />
+            <div className="mt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHintInput(false);
+                  setHint("");
+                }}
+                className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={handleConvertWithAI}
+                disabled={isConverting}
+                className="px-4 py-1.5 text-xs bg-violet-600 text-white font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-all"
+              >
+                変換実行
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* レイヤーインジケータ */}
         <div className="absolute bottom-3 right-3 flex gap-2 z-20">
@@ -492,61 +501,6 @@ export default function DiagramCanvas({
           </div>
         )}
       </div>
-
-      {/* Mermaidコードエディタ（折りたたみ） */}
-      <details className="bg-gray-900 rounded-xl overflow-hidden">
-        <summary className="p-4 text-sm cursor-pointer hover:bg-gray-800 transition-colors">
-          <span className="text-gray-300 font-medium flex items-center gap-2">
-            <span>📝</span> Mermaidコード
-            <span className="text-xs text-gray-500 ml-2">
-              （クリックで展開）
-            </span>
-          </span>
-        </summary>
-        <div className="p-4 pt-0">
-          <div className="flex items-center justify-end mb-3 gap-2">
-            {isEditing ? (
-              <>
-                <button
-                  type="button"
-                  onClick={handleCancelEdit}
-                  className="px-3 py-1 text-xs bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
-                >
-                  キャンセル
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCodeUpdate}
-                  className="px-3 py-1 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors"
-                >
-                  適用
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsEditing(true)}
-                className="px-3 py-1 text-xs bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
-              >
-                編集
-              </button>
-            )}
-          </div>
-
-          {isEditing ? (
-            <textarea
-              value={editingCode}
-              onChange={(e) => setEditingCode(e.target.value)}
-              className="w-full h-40 bg-gray-800 text-gray-100 font-mono text-xs p-3 rounded-lg border border-gray-700 focus:outline-none focus:border-indigo-500 resize-none"
-              spellCheck={false}
-            />
-          ) : (
-            <pre className="bg-gray-800 text-gray-100 font-mono text-xs p-3 rounded-lg overflow-x-auto max-h-40">
-              <code>{mermaidCode}</code>
-            </pre>
-          )}
-        </div>
-      </details>
     </div>
   );
 }

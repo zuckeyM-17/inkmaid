@@ -164,7 +164,7 @@ export default function VersionHistoryPanel({
   if (!isOpen) return null;
 
   return (
-    <aside className="w-80 bg-slate-900 border-l border-slate-700 flex flex-col shrink-0 text-slate-100">
+    <aside className="w-80 bg-slate-900 border-r border-slate-700 flex flex-col shrink-0 text-slate-100 h-full">
       {/* ヘッダー */}
       <div className="p-4 border-b border-slate-700 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -176,14 +176,6 @@ export default function VersionHistoryPanel({
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-slate-400 hover:text-slate-200 transition-colors text-lg"
-          title="閉じる"
-        >
-          ×
-        </button>
       </div>
 
       {/* バージョン一覧 */}
