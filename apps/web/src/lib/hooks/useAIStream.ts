@@ -2,6 +2,10 @@
 
 import type { Stroke } from "@/components/HandwritingCanvas";
 import type { NodePosition } from "@/components/MermaidPreview";
+import {
+  isStrokeDataTooLarge,
+  simplifyStrokes,
+} from "@/lib/utils/strokeSimplification";
 import type { DiagramType } from "@/server/db/schema";
 import { useCallback, useRef, useState } from "react";
 
@@ -98,12 +102,32 @@ export function useAIStream() {
       });
 
       try {
+        // ストロークデータが大きすぎる場合は簡略化
+        let processedStrokes = params.strokes;
+        if (isStrokeDataTooLarge(processedStrokes)) {
+          // 簡略化を実行（許容誤差2.0、最大500points/ストローク）
+          processedStrokes = simplifyStrokes(processedStrokes, 2.0, 500);
+
+          // 簡略化後も大きい場合は警告を表示
+          if (isStrokeDataTooLarge(processedStrokes)) {
+            setState((prev) => ({
+              ...prev,
+              errorMessage:
+                "ストロークデータが大きすぎます。一部のストロークを削除するか、簡略化してください。",
+            }));
+            return;
+          }
+        }
+
         const response = await fetch("/api/ai/interpret-stream", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(params),
+          body: JSON.stringify({
+            ...params,
+            strokes: processedStrokes,
+          }),
           signal: abortController.signal,
         });
 

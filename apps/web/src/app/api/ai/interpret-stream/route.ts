@@ -1,4 +1,8 @@
 import { flushLangfuse, getLangfuse } from "@/lib/langfuse/client";
+import {
+  isStrokeDataTooLarge,
+  simplifyStrokes,
+} from "@/lib/utils/strokeSimplification";
 import { DIAGRAM_TYPES, type DiagramType } from "@/server/db/schema";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
@@ -253,13 +257,32 @@ export async function POST(request: Request) {
     );
   }
 
+  // ストロークデータが大きすぎる場合は簡略化
+  let processedStrokes = strokes;
+  if (isStrokeDataTooLarge(strokes)) {
+    // 簡略化を実行（許容誤差2.0、最大500points/ストローク）
+    processedStrokes = simplifyStrokes(strokes, 2.0, 500);
+
+    // 簡略化後も大きい場合はエラーを返す
+    if (isStrokeDataTooLarge(processedStrokes)) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "ストロークデータが大きすぎます。ストローク数を減らすか、より簡潔に描いてください。",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    }
+  }
+
   // Langfuseトレースを開始
   const langfuse = getLangfuse();
   const trace = langfuse?.trace({
     name: "interpret-stream",
     metadata: {
       diagramType,
-      strokeCount: strokes.length,
+      strokeCount: processedStrokes.length,
+      originalStrokeCount: strokes.length,
       hasImage: !!canvasImage,
       hasHint: !!hint,
       provider: getProvider(),
@@ -293,7 +316,7 @@ export async function POST(request: Request) {
   };
 
   // ストロークデータをテキストに変換
-  const strokeDescriptions = strokes
+  const strokeDescriptions = processedStrokes
     .map((stroke, index) => {
       const points = stroke.points;
       const numPoints = points.length / 2;
@@ -349,7 +372,7 @@ ${currentMermaidCode}
 ## 現在のダイアグラム上の各ノードの位置（ピクセル座標）:
 ${nodePositionDescriptions}
 
-## 手書きストロークデータ（${strokes.length}個のストローク）:
+## 手書きストロークデータ（${processedStrokes.length}個のストローク${strokes.length !== processedStrokes.length ? `、簡略化済み（元: ${strokes.length}個）` : ""}）:
 ${strokeDescriptions}
 
 ${hint ? `## ユーザーからの補足: ${hint}` : ""}
