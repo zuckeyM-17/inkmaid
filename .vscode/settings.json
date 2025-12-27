@@ -86,5 +86,6 @@
   "[markdown]": {
     "editor.defaultFormatter": "biomejs.biome",
     "editor.wordWrap": "on"
-  }
+  },
+  "cSpell.words": ["langfuse"]
 }
