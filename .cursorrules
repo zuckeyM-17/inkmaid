@@ -156,36 +156,60 @@ export type NewProject = typeof projects.$inferInsert;
    - 完了したタスクを「🟢 完了済み」セクションに移動
    - 新しいタスクがあれば優先度に応じて追加
    - 「最終更新」の日付を更新
+9. **🔴 必須: タスク完了時に必ずlintチェックを実行する**
+   - 作業を完了する前に、必ず `pnpm lint` を実行してエラーがないことを確認する
+   - エラーがある場合は `pnpm lint:fix` で自動修正を試みる
+   - 自動修正できないエラーは手動で修正する
+   - lintエラーが解消されるまで作業を完了としない
 
 ## 作業完了前のCIチェック（必須）
 
-**作業を完了する前に、以下のコマンドを実行してCIと同じチェックを通すこと：**
+**🔴 AIは作業を完了する前に、必ず以下のチェックを実行すること：**
 
-```bash
-# 1. Lint チェック（Biome）
-pnpm lint
+### 必須チェック（AIが自動実行）
 
-# 2. 型チェック（TypeScript）
-pnpm --filter web exec tsc --noEmit
+1. **Lintチェック（必須）**
+   ```bash
+   pnpm lint
+   ```
+   - エラーがある場合は `pnpm lint:fix` で自動修正を試みる
+   - 自動修正できないエラーは手動で修正する
+   - lintエラーが解消されるまで作業を完了としない
 
-# 3. ビルドチェック（オプション：大きな変更の場合）
-# DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy pnpm build
-```
+2. **型チェック（必須）**
+   ```bash
+   pnpm --filter web exec tsc --noEmit
+   ```
+   - TypeScriptの型エラーがないことを確認
+   - 型エラーがある場合は修正する
+   - 型エラーが解消されるまで作業を完了としない
+
+3. **ビルドチェック（オプション）**
+   ```bash
+   DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy pnpm build
+   ```
+   - 大きな変更を行った場合や、ビルドに影響する可能性がある変更の場合に実行
+   - Next.jsのビルドが成功することを確認
+   - ビルドエラーがある場合は修正する
 
 ### チェック項目の説明
 
-| チェック | コマンド | 説明 |
-|---------|---------|------|
-| Lint | `pnpm lint` | Biomeによるコードスタイル・構文チェック |
-| Type Check | `pnpm --filter web exec tsc --noEmit` | TypeScriptの型エラーチェック |
-| Build | `pnpm build` | Next.jsのビルドが成功するか確認 |
+| チェック | コマンド | 説明 | 必須度 |
+|---------|---------|------|--------|
+| Lint | `pnpm lint` | Biomeによるコードスタイル・構文チェック | 🔴 必須 |
+| Type Check | `pnpm --filter web exec tsc --noEmit` | TypeScriptの型エラーチェック | 🔴 必須 |
+| Build | `DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy pnpm build` | Next.jsのビルドが成功するか確認 | 🟢 オプション |
 
-### 自動修正が必要な場合
+### 自動修正コマンド
 
 ```bash
 # Biomeの自動修正
 pnpm lint:fix
 ```
 
-**注意**: これらのチェックに失敗するとCIが失敗します。PRを作成する前に必ず通過させてください。
-
+**重要**:
+- AIは作業完了時に必ずLintチェックと型チェックを実行し、エラーがないことを確認すること
+- エラーがある場合は、ユーザーに報告する前に修正すること
+- Lintチェックと型チェックに通過するまで作業を完了としないこと
+- ビルドチェックは大きな変更の場合に実行することを推奨
+- これらのチェックに失敗するとCIが失敗します。PRを作成する前に必ず通過させてください。

@@ -12,6 +12,7 @@
       ".next",
       "dist",
       "build",
+      ".vscode",
       "*.config.js",
       "*.config.mjs"
     ]

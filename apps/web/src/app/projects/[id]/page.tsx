@@ -4,6 +4,7 @@ import AIThinkingPanel from "@/components/AIThinkingPanel";
 import type { ConvertWithAIData } from "@/components/DiagramCanvas";
 import DynamicDiagramCanvas from "@/components/DynamicDiagramCanvas";
 import type { Stroke } from "@/components/HandwritingCanvas";
+import MermaidCodePanel from "@/components/MermaidCodePanel";
 import VersionHistoryPanel from "@/components/VersionHistoryPanel";
 import { useAIStream } from "@/lib/hooks/useAIStream";
 import { trpc } from "@/lib/trpc/client";
@@ -33,17 +34,22 @@ export default function ProjectDetailPage() {
   const MAX_RETRY_COUNT = 3;
 
   // AI思考パネルの表示状態
-  const [showThinkingPanel, setShowThinkingPanel] = useState(true);
+  const [showThinkingPanel, setShowThinkingPanel] = useState(false);
 
   // バージョン履歴パネルの表示状態
   const [showVersionPanel, setShowVersionPanel] = useState(false);
+
+  // Mermaidコードパネルの表示状態
+  const [showMermaidCodePanel, setShowMermaidCodePanel] = useState(false);
 
   // プロジェクト名の編集状態
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingName, setEditingName] = useState("");
 
   // バージョンプレビュー状態
-  const [previewVersionId, setPreviewVersionId] = useState<number | null>(null);
+  const [_previewVersionId, setPreviewVersionId] = useState<number | null>(
+    null,
+  );
   const [previewMermaidCode, setPreviewMermaidCode] = useState<string | null>(
     null,
   );
@@ -62,10 +68,10 @@ export default function ProjectDetailPage() {
     if (!container) return;
 
     const updateSize = () => {
-      const rect = container.getBoundingClientRect();
-      // 幅はコンテナに合わせる（最低800px）、高さはウィンドウ高さの70%程度を確保
-      const newWidth = Math.max(800, Math.floor(rect.width) || 1000);
-      const newHeight = Math.max(500, Math.floor(window.innerHeight * 0.7));
+      // 全画面モード時は画面全体を使用（ヘッダー分を除く）
+      const headerHeight = 48; // h-12 = 48px
+      const newWidth = Math.floor(window.innerWidth);
+      const newHeight = Math.floor(window.innerHeight - headerHeight);
       setCanvasSize({ width: newWidth, height: newHeight });
     };
 
@@ -259,7 +265,7 @@ export default function ProjectDetailPage() {
     (data: ConvertWithAIData) => {
       setLastAiResult(null);
       setErrorRetryCount(0);
-      // 思考パネルを自動的に開く
+      // AIストリーム開始時に思考パネルを自動的に開く
       setShowThinkingPanel(true);
 
       // ストリーミングAPIを呼び出し
@@ -464,6 +470,20 @@ export default function ProjectDetailPage() {
 
           {/* ヘッダー右側のボタン群 */}
           <div className="flex items-center gap-2">
+            {/* Mermaidコードパネルトグル */}
+            <button
+              type="button"
+              onClick={() => setShowMermaidCodePanel(!showMermaidCodePanel)}
+              className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1.5 transition-all ${
+                showMermaidCodePanel
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              <span>📝</span>
+              コード
+            </button>
+
             {/* バージョン履歴トグル */}
             <button
               type="button"
@@ -497,124 +517,66 @@ export default function ProjectDetailPage() {
           </div>
         </header>
 
-        {/* コンテンツエリア */}
-        <div className="flex-1 flex flex-col overflow-auto p-4">
-          {/* AI変換結果のフィードバック（コンパクト版） */}
-          {lastAiResult && (
-            <div className="mb-4 bg-violet-50 rounded-xl border border-violet-200 p-4">
-              <div className="flex items-start gap-3">
-                <span className="text-lg">🤖</span>
-                <div className="flex-1">
-                  <p className="text-sm text-violet-800">{lastAiResult}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setLastAiResult(null)}
-                  className="text-violet-400 hover:text-violet-600 text-lg"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* プレビューモードのバナー */}
-          {previewVersionId && previewMermaidCode && (
-            <div className="mb-4 bg-amber-50 rounded-xl border border-amber-200 p-4">
-              <div className="flex items-start gap-3">
-                <span className="text-lg">👁️</span>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-amber-800 mb-1">
-                    バージョン v{previewVersionId} をプレビュー中
-                  </p>
-                  <p className="text-xs text-amber-700">
-                    この状態に戻すには、右側のバージョン履歴パネルで「この状態に戻す」ボタンをクリックしてください。
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handlePreviewCancel}
-                  className="text-amber-400 hover:text-amber-600 text-lg"
-                  title="プレビューをキャンセル"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* メインキャンバス */}
-          <div ref={canvasContainerRef} className="w-full">
-            <DynamicDiagramCanvas
-              key={`${projectId}-${canvasKey}`}
-              width={canvasSize.width}
-              height={canvasSize.height}
-              strokeColor="#7c3aed"
-              strokeWidth={3}
-              initialMermaidCode={previewMermaidCode ?? editingMermaidCode}
-              initialStrokes={
-                previewStrokes.length > 0 ? previewStrokes : editingStrokes
-              }
-              isSaving={saveDiagramWithStrokes.isPending}
-              isConverting={aiStream.isProcessing}
-              isFixingError={fixMermaidError.isPending}
-              onSave={handleSave}
-              onConvertWithAI={handleConvertWithAI}
-              onMermaidParseError={handleMermaidParseError}
-            />
-          </div>
-
-          {/* デバッグ情報 */}
-          <details className="mt-4 bg-gray-100 rounded-lg p-3 text-xs">
-            <summary className="cursor-pointer text-gray-600 font-medium">
-              🐛 デバッグ情報
-            </summary>
-            <div className="mt-2 space-y-2">
-              <div>
-                <strong>projectId:</strong> {projectId}
-              </div>
-              <div>
-                <strong>lastAiResult:</strong> {lastAiResult || "(empty)"}
-              </div>
-              <div>
-                <strong>aiThinking:</strong>{" "}
-                {aiStream.thinkingText
-                  ? `${aiStream.thinkingText.substring(0, 100)}...`
-                  : "(empty)"}
-              </div>
-              <div>
-                <strong>aiOutput:</strong>{" "}
-                {aiStream.outputText
-                  ? `${aiStream.outputText.substring(0, 100)}...`
-                  : "(empty)"}
-              </div>
-              <div>
-                <strong>errorRetryCount:</strong> {errorRetryCount}
-              </div>
-            </div>
-          </details>
+        {/* コンテンツエリア（全画面モード） */}
+        <div ref={canvasContainerRef} className="flex-1 w-full h-full relative">
+          <DynamicDiagramCanvas
+            key={`${projectId}-${canvasKey}`}
+            width={canvasSize.width}
+            height={canvasSize.height}
+            strokeColor="#7c3aed"
+            strokeWidth={3}
+            initialMermaidCode={previewMermaidCode ?? editingMermaidCode}
+            initialStrokes={
+              previewStrokes.length > 0 ? previewStrokes : editingStrokes
+            }
+            isSaving={saveDiagramWithStrokes.isPending}
+            isConverting={aiStream.isProcessing}
+            isFixingError={fixMermaidError.isPending}
+            onSave={handleSave}
+            onConvertWithAI={handleConvertWithAI}
+            onMermaidParseError={handleMermaidParseError}
+          />
         </div>
       </main>
 
-      {/* 右サイドバー: バージョン履歴パネル */}
-      <VersionHistoryPanel
-        projectId={projectId}
-        isOpen={showVersionPanel}
-        onClose={() => setShowVersionPanel(false)}
-        onRollbackComplete={handleRollbackComplete}
-        onVersionPreview={handleVersionPreview}
-        onPreviewCancel={handlePreviewCancel}
+      {/* Mermaidコードパネル（オーバーレイ） */}
+      <MermaidCodePanel
+        mermaidCode={previewMermaidCode ?? editingMermaidCode}
+        isOpen={showMermaidCodePanel}
+        onClose={() => setShowMermaidCodePanel(false)}
       />
 
-      {/* 右サイドバー: AI思考ログパネル */}
-      <AIThinkingPanel
-        isOpen={showThinkingPanel}
-        isProcessing={aiStream.isProcessing}
-        thinkingText={aiStream.thinkingText}
-        resultReason={lastAiResult}
-        errorMessage={aiStream.errorMessage}
-        onClose={() => setShowThinkingPanel(false)}
-      />
+      {/* バージョン履歴パネル（オーバーレイ） */}
+      {showVersionPanel && (
+        <div className="fixed inset-0 z-40 pointer-events-none">
+          <div className="absolute right-0 top-0 h-full pointer-events-auto shadow-2xl">
+            <VersionHistoryPanel
+              projectId={projectId}
+              isOpen={showVersionPanel}
+              onClose={() => setShowVersionPanel(false)}
+              onRollbackComplete={handleRollbackComplete}
+              onVersionPreview={handleVersionPreview}
+              onPreviewCancel={handlePreviewCancel}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* AI思考ログパネル（オーバーレイ） */}
+      {showThinkingPanel && (
+        <div className="fixed inset-0 z-40 pointer-events-none">
+          <div className="absolute right-0 top-0 h-full pointer-events-auto shadow-2xl">
+            <AIThinkingPanel
+              isOpen={showThinkingPanel}
+              isProcessing={aiStream.isProcessing}
+              thinkingText={aiStream.thinkingText}
+              resultReason={lastAiResult}
+              errorMessage={aiStream.errorMessage}
+              onClose={() => setShowThinkingPanel(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
