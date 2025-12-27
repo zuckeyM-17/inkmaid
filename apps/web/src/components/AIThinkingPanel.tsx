@@ -55,14 +55,6 @@ export default function AIThinkingPanel({
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-slate-400 hover:text-slate-200 transition-colors text-lg"
-          title="閉じる"
-        >
-          ×
-        </button>
       </div>
 
       {/* 思考ログ表示エリア */}

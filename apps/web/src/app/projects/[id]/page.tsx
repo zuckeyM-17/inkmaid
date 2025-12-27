@@ -549,7 +549,7 @@ export default function ProjectDetailPage() {
       {/* バージョン履歴パネル（オーバーレイ） */}
       {showVersionPanel && (
         <div className="fixed inset-0 z-40 pointer-events-none">
-          <div className="absolute right-0 top-0 h-full pointer-events-auto shadow-2xl">
+          <div className="absolute right-0 top-12 h-[calc(100%-3rem)] pointer-events-auto shadow-2xl">
             <VersionHistoryPanel
               projectId={projectId}
               isOpen={showVersionPanel}
@@ -565,7 +565,7 @@ export default function ProjectDetailPage() {
       {/* AI思考ログパネル（オーバーレイ） */}
       {showThinkingPanel && (
         <div className="fixed inset-0 z-40 pointer-events-none">
-          <div className="absolute right-0 top-0 h-full pointer-events-auto shadow-2xl">
+          <div className="absolute right-0 top-12 h-[calc(100%-3rem)] pointer-events-auto shadow-2xl">
             <AIThinkingPanel
               isOpen={showThinkingPanel}
               isProcessing={aiStream.isProcessing}

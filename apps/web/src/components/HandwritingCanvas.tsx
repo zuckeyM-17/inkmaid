@@ -147,6 +147,15 @@ const HandwritingCanvas = forwardRef<
     setStrokes(initialStrokes);
   }, [initialStrokes]);
 
+  // キャンバスサイズが変更されたときにviewTransformをリセット
+  // リサイズ時にストロークがずれるのを防ぐ
+  // biome-ignore lint/correctness/useExhaustiveDependencies: width/heightはpropsであり、変更時にリセットが必要
+  useEffect(() => {
+    if (!externalViewTransform) {
+      setInternalViewTransform({ scale: 1, x: 0, y: 0 });
+    }
+  }, [width, height, externalViewTransform]);
+
   // スペースキーのイベントリスナー
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

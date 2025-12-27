@@ -414,7 +414,7 @@ export default function DiagramCanvas({
 
         {/* 補足説明入力エリア（オーバーレイ） */}
         {showHintInput && (
-          <div className="absolute top-16 left-3 z-30 w-96 bg-white rounded-xl border border-violet-200 shadow-lg p-4">
+          <div className="absolute top-16 left-3 z-30 w-[50vw] max-w-[800px] bg-white rounded-xl border border-violet-200 shadow-lg p-4">
             <div className="flex items-center justify-between mb-2">
               <label
                 htmlFor="hint-input"
@@ -423,25 +423,14 @@ export default function DiagramCanvas({
                 <span>💡</span>
                 補足説明（オプション）
               </label>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowHintInput(false);
-                  setHint("");
-                }}
-                className="text-gray-400 hover:text-gray-600 text-lg"
-                title="閉じる"
-              >
-                ×
-              </button>
             </div>
             <textarea
               id="hint-input"
               value={hint}
               onChange={(e) => setHint(e.target.value)}
               placeholder="例: 上の四角はユーザー認証、矢印はデータの流れ..."
-              rows={3}
-              className="w-full px-3 py-2 text-sm border border-violet-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-none"
+              rows={15}
+              className="w-full px-3 py-2 text-sm border border-violet-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 resize-y min-h-[200px]"
             />
             <div className="mt-2 flex items-center justify-end gap-2">
               <button
