@@ -31,12 +31,19 @@
     "prod:up": "docker compose -f docker-compose.prod.yml up -d",
     "prod:down": "docker compose -f docker-compose.prod.yml down",
     "prod:logs": "docker compose -f docker-compose.prod.yml logs -f",
-    "git:clean-branches": "git branch --merged | grep -v -E '^\\*|main$|master$|develop$' | xargs git branch -d 2>/dev/null || echo 'No merged branches to delete'"
+    "git:clean-branches": "git branch --merged | grep -v -E '^\\*|main$|master$|develop$' | xargs git branch -d 2>/dev/null || echo 'No merged branches to delete'",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "dotenv-cli": "^8.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "vitest": "^2.1.8"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": ["biome check --write", "biome format --write"],
+    "*.{json,md}": ["biome format --write"]
   },
   "packageManager": "pnpm@9.15.1",
   "engines": {
