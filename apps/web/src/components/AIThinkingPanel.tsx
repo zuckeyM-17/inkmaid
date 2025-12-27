@@ -29,6 +29,8 @@ type AIThinkingPanelProps = {
     | "stage2b"
     | "completed"
     | "error";
+  /** 両方のパネルが開いているかどうか */
+  isBothOpen?: boolean;
 };
 
 /**
@@ -43,6 +45,7 @@ export default function AIThinkingPanel({
   isOpen,
   progress,
   multiStageState,
+  isBothOpen = false,
 }: AIThinkingPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -57,8 +60,15 @@ export default function AIThinkingPanel({
 
   if (!isOpen) return null;
 
+  // 両方が開いている場合は左ボーダー、1つだけの場合は右ボーダー
+  const borderClass = isBothOpen
+    ? "border-l border-slate-700"
+    : "border-r border-slate-700";
+
   return (
-    <aside className="w-80 bg-slate-900 border-r border-slate-700 flex flex-col shrink-0 text-slate-100 h-full">
+    <aside
+      className={`w-80 bg-slate-900 ${borderClass} flex flex-col shrink-0 text-slate-100 h-full`}
+    >
       {/* ヘッダー */}
       <div className="p-4 border-b border-slate-700 flex items-center justify-between">
         <div className="flex items-center gap-2">

@@ -163,6 +163,7 @@ export default function VersionHistoryPanel({
 
   if (!isOpen) return null;
 
+  // 履歴パネルは常に右ボーダー（左側に配置される場合も右側に配置される場合も）
   return (
     <aside className="w-80 bg-slate-900 border-r border-slate-700 flex flex-col shrink-0 text-slate-100 h-full">
       {/* ヘッダー */}
