@@ -160,6 +160,37 @@ export function simplifyStrokes(
 }
 
 /**
+ * ストロークのバウンディングボックスを計算
+ *
+ * @param points - ストロークのpoints配列 [x1, y1, x2, y2, ...]
+ * @returns バウンディングボックスの情報
+ */
+export function getStrokeBounds(points: number[]) {
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < points.length; i += 2) {
+    const x = points[i];
+    const y = points[i + 1];
+    if (x !== undefined && y !== undefined) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    centerX: (minX + maxX) / 2,
+    centerY: (minY + maxY) / 2,
+  };
+}
+
+/**
  * ストロークデータのサイズを推定する（バイト単位）
  *
  * @param strokes - ストローク配列

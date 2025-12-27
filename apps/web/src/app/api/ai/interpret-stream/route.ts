@@ -207,6 +207,89 @@ ${DIAGRAM_STROKE_RULES[diagramType]}
 }
 
 /**
+ * Stage 1用: 構造抽出プロンプトを生成
+ */
+function getStructureExtractionPrompt(diagramType: DiagramType): string {
+  return `あなたは手書きストロークからMermaidダイアグラムの**全体構造**を把握するAIアシスタントです。
+
+## 現在編集中の図の種類: ${diagramType}
+
+## あなたの役割（Stage 1: 構造抽出）
+- **主要な要素（ノード、接続）のみを抽出してください**
+- 詳細な装飾、細かい要素、不完全なストロークは無視してください
+- 全体の骨格構造、流れ、主要な関係性を優先してください
+- 不完全な情報でも構いません。全体像を把握することが重要です
+
+${DIAGRAM_SYNTAX_RULES[diagramType]}
+
+${DIAGRAM_STROKE_RULES[diagramType]}
+
+## 出力形式
+以下の形式で出力してください：
+
+---MERMAID_START---
+(主要な構造のみのMermaidコード)
+---MERMAID_END---
+
+---REASON_START---
+(抽出した主要要素の説明: どのようなノードや接続を検出したか)
+---REASON_END---
+
+## 注意事項
+- 詳細は後で追加されます。今は全体構造に集中してください
+- 不完全でも構いません。主要な要素を優先してください
+- 必ず有効なMermaid ${diagramType} 構文を出力すること`;
+}
+
+/**
+ * Stage 2用: 詳細追加プロンプトを生成
+ */
+function getDetailAdditionPrompt(
+  diagramType: DiagramType,
+  baseMermaidCode: string,
+): string {
+  return `あなたは既存のMermaidダイアグラムに**詳細を追加**するAIアシスタントです。
+
+## 現在編集中の図の種類: ${diagramType}
+
+## 既存のMermaidコード（主要構造）
+\`\`\`mermaid
+${baseMermaidCode}
+\`\`\`
+
+## あなたの役割（Stage 2: 詳細追加）
+- 既存の構造を**保持**しつつ、追加ストロークで詳細を追加してください
+- 新しいノード、接続、ラベル、スタイルなどを追加できます
+- 既存の要素を修正・削除することも可能です
+- 追加ストロークの意図を推測し、適切に統合してください
+
+${DIAGRAM_SYNTAX_RULES[diagramType]}
+
+${DIAGRAM_STROKE_RULES[diagramType]}
+
+## 出力形式
+以下の形式で出力してください：
+
+---MERMAID_START---
+(詳細を追加した完全なMermaidコード)
+---MERMAID_END---
+
+---REASON_START---
+(追加した詳細の説明: 何を追加・修正したか)
+---REASON_END---
+
+## 注意事項
+- 既存の構造を壊さないようにしてください
+- 追加ストロークの意図を最大限に反映してください
+- 必ず有効なMermaid ${diagramType} 構文を出力すること`;
+}
+
+/**
+ * 処理モード
+ */
+type ProcessingMode = "normal" | "structure-extraction" | "detail-addition";
+
+/**
  * リクエストボディの型定義
  */
 interface InterpretStreamRequest {
@@ -230,6 +313,11 @@ interface InterpretStreamRequest {
   canvasImage?: string;
   hint?: string;
   diagramType?: DiagramType;
+  // 多段階処理用の拡張パラメータ
+  mode?: ProcessingMode;
+  stage?: 1 | 2;
+  baseMermaidCode?: string; // Stage 2で使用
+  processedStrokeIndices?: number[]; // Stage 1で処理済みのインデックス
 }
 
 /**
@@ -245,6 +333,10 @@ export async function POST(request: Request) {
     canvasImage,
     hint,
     diagramType = "flowchart",
+    mode = "normal",
+    stage,
+    baseMermaidCode,
+    processedStrokeIndices,
   } = body;
 
   // ストロークがない場合は早期リターン
@@ -257,11 +349,30 @@ export async function POST(request: Request) {
     );
   }
 
+  // Stage 2の場合、処理済みストロークを除外
+  let strokesToProcess = strokes;
+  if (
+    stage === 2 &&
+    processedStrokeIndices &&
+    processedStrokeIndices.length > 0
+  ) {
+    strokesToProcess = strokes.filter(
+      (_, index) => !processedStrokeIndices.includes(index),
+    );
+  }
+
   // ストロークデータが大きすぎる場合は簡略化
-  let processedStrokes = strokes;
-  if (isStrokeDataTooLarge(strokes)) {
-    // 簡略化を実行（許容誤差2.0、最大500points/ストローク）
-    processedStrokes = simplifyStrokes(strokes, 2.0, 500);
+  let processedStrokes = strokesToProcess;
+  const simplificationTolerance = mode === "structure-extraction" ? 3.0 : 2.0;
+  const maxPointsPerStroke = mode === "structure-extraction" ? 300 : 500;
+
+  if (isStrokeDataTooLarge(strokesToProcess)) {
+    // モードに応じた簡略化を実行
+    processedStrokes = simplifyStrokes(
+      strokesToProcess,
+      simplificationTolerance,
+      maxPointsPerStroke,
+    );
 
     // 簡略化後も大きい場合はエラーを返す
     if (isStrokeDataTooLarge(processedStrokes)) {
@@ -364,24 +475,41 @@ export async function POST(request: Request) {
           .join("\n")
       : "（ノード位置情報なし）";
 
+  // Stage 2の場合、baseMermaidCodeを使用
+  const mermaidCodeToUse =
+    mode === "detail-addition" && baseMermaidCode
+      ? baseMermaidCode
+      : currentMermaidCode;
+
   const userMessage = `現在のMermaidコード:
 \`\`\`mermaid
-${currentMermaidCode}
+${mermaidCodeToUse}
 \`\`\`
 
 ## 現在のダイアグラム上の各ノードの位置（ピクセル座標）:
 ${nodePositionDescriptions}
 
-## 手書きストロークデータ（${processedStrokes.length}個のストローク${strokes.length !== processedStrokes.length ? `、簡略化済み（元: ${strokes.length}個）` : ""}）:
+## 手書きストロークデータ（${processedStrokes.length}個のストローク${strokes.length !== processedStrokes.length ? `、簡略化済み（元: ${strokes.length}個）` : ""}${stage === 2 && processedStrokeIndices ? `、Stage 1で処理済み: ${processedStrokeIndices.length}個` : ""}）:
 ${strokeDescriptions}
 
 ${hint ? `## ユーザーからの補足: ${hint}` : ""}
 
-## 解釈のヒント
+${
+  mode === "detail-addition"
+    ? `## 重要: 詳細追加モード
+- 既存のMermaidコード（上記）をベースに、追加ストロークで詳細を追加してください
+- 既存の構造を保持しつつ、新しい要素を追加・修正してください`
+    : mode === "structure-extraction"
+      ? `## 重要: 構造抽出モード
+- 主要な要素（ノード、接続）のみを抽出してください
+- 詳細な装飾や細かい要素は無視してください
+- 全体の骨格構造に集中してください`
+      : `## 解釈のヒント
 - ストロークの座標と既存ノードの位置を比較して、どのノードに対する操作かを判断してください
 - ストロークがノードの近くにある場合、そのノードとの関連を考慮してください
 - ノード間を結ぶような線は、接続（矢印）を意味する可能性が高いです
-- **X印（バツ）がノード上に描かれた場合は、そのノードを削除してください**
+- **X印（バツ）がノード上に描かれた場合は、そのノードを削除してください**`
+}
 
 これらのストロークを解釈して、Mermaidダイアグラムを更新してください。`;
 
@@ -441,8 +569,17 @@ ${userMessage}`
     );
   }
 
+  // モードに応じたプロンプトを選択
+  let systemPrompt: string;
+  if (mode === "structure-extraction") {
+    systemPrompt = getStructureExtractionPrompt(validDiagramType);
+  } else if (mode === "detail-addition" && baseMermaidCode) {
+    systemPrompt = getDetailAdditionPrompt(validDiagramType, baseMermaidCode);
+  } else {
+    systemPrompt = getStrokeInterpretationPrompt(validDiagramType);
+  }
+
   // Langfuse Generationスパンを作成
-  const systemPrompt = getStrokeInterpretationPrompt(validDiagramType);
   const generation = trace?.generation({
     name: "stroke-interpretation",
     model: getModelName(),
