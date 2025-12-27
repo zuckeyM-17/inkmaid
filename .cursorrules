@@ -134,6 +134,7 @@ export type NewProject = typeof projects.$inferInsert;
 - Biomeのルールに従う（ESLint/Prettierは使用しない）
 - コミット前に `pnpm lint:fix` を実行
 - git worktree使用時は `pnpm setup` で環境を初期化
+- **lint-staged設定**: `biome format --write`は使用せず、`biome check --write`を使用（フォーマットも含む）
 
 ## AI開発時のガイドライン
 
@@ -161,6 +162,18 @@ export type NewProject = typeof projects.$inferInsert;
    - エラーがある場合は `pnpm lint:fix` で自動修正を試みる
    - 自動修正できないエラーは手動で修正する
    - lintエラーが解消されるまで作業を完了としない
+10. **🔴 必須: lint-staged設定の統一ルール**
+    - `package.json`の`lint-staged`設定を変更する際は、必ず以下の設定を使用する：
+      ```json
+      "lint-staged": {
+        "*.{ts,tsx,js,jsx}": ["biome check --write"],
+        "*.{json,md}": ["biome check --write"]
+      }
+      ```
+    - ❌ **禁止**: `biome format --write`を直接使用しない（lint-stagedから呼び出すとエラーになる可能性がある）
+    - ✅ **推奨**: すべてのファイルタイプで`biome check --write`を使用（フォーマットも含む）
+    - `package.json`を変更した後は、lint-stagedの設定が正しいか確認すること
+    - lint-stagedの設定を変更した場合は、必ず`pnpm lint-staged --help`で動作確認すること
 
 ## 作業完了前のCIチェック（必須）
 
@@ -212,4 +225,5 @@ pnpm lint:fix
 - エラーがある場合は、ユーザーに報告する前に修正すること
 - Lintチェックと型チェックに通過するまで作業を完了としないこと
 - ビルドチェックは大きな変更の場合に実行することを推奨
+- **package.jsonを変更した場合**: lint-staged設定が正しいか確認すること（`biome check --write`を使用）
 - これらのチェックに失敗するとCIが失敗します。PRを作成する前に必ず通過させてください。

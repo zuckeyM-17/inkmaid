@@ -115,6 +115,17 @@ const HandwritingCanvas = forwardRef<
   const isPanning = useRef(false);
   // スペースキー押下中フラグ
   const isSpacePressed = useRef(false);
+  // タッチ中フラグ（範囲選択を防ぐため）
+  const isTouching = useRef(false);
+  // 最後のタッチ位置（パン用）
+  const lastTouchPos = useRef<{ x: number; y: number } | null>(null);
+  // ピンチズーム用の状態
+  const pinchState = useRef<{
+    initialDistance: number;
+    initialScale: number;
+    initialCenter: { x: number; y: number };
+    initialTransform: ViewTransform;
+  } | null>(null);
   // Konvaステージへの参照
   const stageRef = useRef<Konva.Stage>(null);
   // コンテナへの参照
@@ -237,10 +248,35 @@ const HandwritingCanvas = forwardRef<
   );
 
   /**
-   * 描画開始
+   * 2本指の距離を計算
+   */
+  const getTouchDistance = useCallback(
+    (touch1: Touch, touch2: Touch): number => {
+      const dx = touch2.clientX - touch1.clientX;
+      const dy = touch2.clientY - touch1.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    },
+    [],
+  );
+
+  /**
+   * 2本指の中点を計算
+   */
+  const getTouchCenter = useCallback(
+    (touch1: Touch, touch2: Touch): { x: number; y: number } => {
+      return {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2,
+      };
+    },
+    [],
+  );
+
+  /**
+   * 描画開始（マウス）
    */
   const handleMouseDown = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
       const stage = e.target.getStage();
       if (!stage) return;
 
@@ -265,16 +301,81 @@ const HandwritingCanvas = forwardRef<
   );
 
   /**
-   * 描画中 / パン中
+   * タッチ開始（タッチデバイス専用）
+   * 範囲選択などのデフォルト動作を防ぐ
+   */
+  const handleTouchStart = useCallback(
+    (e: Konva.KonvaEventObject<TouchEvent>) => {
+      // デフォルト動作を防ぐ（範囲選択など）
+      e.evt.preventDefault();
+
+      const stage = e.target.getStage();
+      if (!stage) return;
+
+      // タッチ中フラグを設定
+      isTouching.current = true;
+
+      // 2本指の場合はピンチズームモード
+      if (e.evt.touches.length === 2) {
+        const touch1 = e.evt.touches[0];
+        const touch2 = e.evt.touches[1];
+        if (!touch1 || !touch2) return;
+
+        // 描画を中断
+        if (isDrawing.current) {
+          isDrawing.current = false;
+          setCurrentStroke([]);
+        }
+
+        // ピンチズームの初期状態を記録
+        const distance = getTouchDistance(touch1, touch2);
+        const center = getTouchCenter(touch1, touch2);
+
+        pinchState.current = {
+          initialDistance: distance,
+          initialScale: viewTransform.scale,
+          initialCenter: center,
+          initialTransform: { ...viewTransform },
+        };
+        return;
+      }
+
+      // 1本指の場合は描画
+      if (e.evt.touches.length === 1) {
+        // ピンチズームを終了
+        pinchState.current = null;
+
+        // 描画開始
+        isDrawing.current = true;
+        const pos = getTransformedPointerPosition(stage);
+        if (pos) {
+          setCurrentStroke([pos.x, pos.y]);
+          const touch = e.evt.touches[0];
+          if (touch) {
+            lastTouchPos.current = { x: touch.clientX, y: touch.clientY };
+          }
+        }
+      }
+    },
+    [
+      getTransformedPointerPosition,
+      getTouchDistance,
+      getTouchCenter,
+      viewTransform,
+    ],
+  );
+
+  /**
+   * 描画中 / パン中（マウス）
    */
   const handleMouseMove = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
       const stage = e.target.getStage();
       if (!stage) return;
 
       // パンモード
       if (isPanning.current) {
-        const nativeEvent = e.evt as MouseEvent | TouchEvent;
+        const nativeEvent = e.evt as MouseEvent;
         let movementX = 0;
         let movementY = 0;
 
@@ -303,7 +404,97 @@ const HandwritingCanvas = forwardRef<
   );
 
   /**
-   * 描画終了 / パン終了
+   * タッチ移動（タッチデバイス専用）
+   * 範囲選択などのデフォルト動作を防ぐ
+   */
+  const handleTouchMove = useCallback(
+    (e: Konva.KonvaEventObject<TouchEvent>) => {
+      // デフォルト動作を防ぐ（範囲選択、スクロールなど）
+      e.evt.preventDefault();
+
+      const stage = e.target.getStage();
+      if (!stage) return;
+
+      // 2本指の場合はピンチズーム
+      if (e.evt.touches.length === 2 && pinchState.current) {
+        const touch1 = e.evt.touches[0];
+        const touch2 = e.evt.touches[1];
+        if (!touch1 || !touch2) return;
+
+        const currentDistance = getTouchDistance(touch1, touch2);
+        const currentCenter = getTouchCenter(touch1, touch2);
+
+        // 距離の変化からスケールを計算
+        const scaleRatio = currentDistance / pinchState.current.initialDistance;
+        const newScale = Math.min(
+          MAX_SCALE,
+          Math.max(MIN_SCALE, pinchState.current.initialScale * scaleRatio),
+        );
+
+        // 中心点の移動を計算（パン）
+        const centerDeltaX =
+          currentCenter.x - pinchState.current.initialCenter.x;
+        const centerDeltaY =
+          currentCenter.y - pinchState.current.initialCenter.y;
+
+        // ピンチズームの中心点を基準にズーム
+        // 初期状態での中心点のキャンバス座標を計算
+        const initialCenterOnCanvas = {
+          x:
+            (pinchState.current.initialCenter.x -
+              pinchState.current.initialTransform.x) /
+            pinchState.current.initialScale,
+          y:
+            (pinchState.current.initialCenter.y -
+              pinchState.current.initialTransform.y) /
+            pinchState.current.initialScale,
+        };
+
+        // 新しいスケールでの中心点の位置を計算
+        const newCenterX =
+          initialCenterOnCanvas.x * newScale +
+          pinchState.current.initialTransform.x;
+        const newCenterY =
+          initialCenterOnCanvas.y * newScale +
+          pinchState.current.initialTransform.y;
+
+        // ズームとパンを適用（中心点を基準にズームし、中心点の移動でパン）
+        updateViewTransform({
+          scale: newScale,
+          x:
+            pinchState.current.initialTransform.x +
+            centerDeltaX +
+            (pinchState.current.initialCenter.x - newCenterX),
+          y:
+            pinchState.current.initialTransform.y +
+            centerDeltaY +
+            (pinchState.current.initialCenter.y - newCenterY),
+        });
+        return;
+      }
+
+      // 1本指の場合は描画
+      if (e.evt.touches.length === 1 && isDrawing.current) {
+        const touch = e.evt.touches[0];
+        if (!touch) return;
+
+        const pos = getTransformedPointerPosition(stage);
+        if (pos) {
+          setCurrentStroke((prev) => [...prev, pos.x, pos.y]);
+          lastTouchPos.current = { x: touch.clientX, y: touch.clientY };
+        }
+      }
+    },
+    [
+      getTransformedPointerPosition,
+      getTouchDistance,
+      getTouchCenter,
+      updateViewTransform,
+    ],
+  );
+
+  /**
+   * 描画終了 / パン終了（マウス）
    */
   const handleMouseUp = useCallback(() => {
     // パン終了
@@ -347,6 +538,77 @@ const HandwritingCanvas = forwardRef<
     onStrokesChange,
     generateId,
   ]);
+
+  /**
+   * タッチ終了（タッチデバイス専用）
+   * 範囲選択などのデフォルト動作を防ぐ
+   */
+  const handleTouchEnd = useCallback(
+    (e: Konva.KonvaEventObject<TouchEvent>) => {
+      // デフォルト動作を防ぐ
+      e.evt.preventDefault();
+
+      // 2本指から1本指になった場合、ピンチズームを終了
+      if (e.evt.touches.length === 1 && pinchState.current) {
+        pinchState.current = null;
+        // 1本指が残っている場合は描画モードに切り替え
+        const touch = e.evt.touches[0];
+        if (touch) {
+          const stage = e.target.getStage();
+          if (stage) {
+            isDrawing.current = true;
+            const pos = getTransformedPointerPosition(stage);
+            if (pos) {
+              setCurrentStroke([pos.x, pos.y]);
+              lastTouchPos.current = { x: touch.clientX, y: touch.clientY };
+            }
+          }
+        }
+        return;
+      }
+
+      // 全てのタッチが終了した場合
+      if (e.evt.touches.length === 0) {
+        // タッチ中フラグを解除
+        isTouching.current = false;
+        lastTouchPos.current = null;
+        pinchState.current = null;
+
+        // 描画終了
+        if (isDrawing.current) {
+          isDrawing.current = false;
+
+          if (currentStroke.length >= 4) {
+            const newStroke: Stroke = {
+              id: generateId(),
+              points: currentStroke,
+              color: strokeColor,
+              strokeWidth,
+            };
+
+            const updatedStrokes = [...strokes, newStroke];
+            setStrokes(updatedStrokes);
+
+            // コールバックを呼び出し
+            onStrokeComplete?.(newStroke);
+            onStrokesChange?.(updatedStrokes);
+          }
+
+          setCurrentStroke([]);
+        }
+      }
+    },
+    [
+      currentStroke,
+      strokeColor,
+      strokeWidth,
+      strokes,
+      onStrokeComplete,
+      onStrokesChange,
+      generateId,
+      getTransformedPointerPosition,
+    ],
+  );
 
   /**
    * ホイールでズーム
@@ -471,6 +733,9 @@ const HandwritingCanvas = forwardRef<
         width: `${width}px`,
         height: `${height}px`,
         backgroundColor: "transparent",
+        touchAction: "none",
+        userSelect: "none",
+        WebkitUserSelect: "none",
       }}
     >
       {/* ツールバー */}
@@ -545,11 +810,13 @@ const HandwritingCanvas = forwardRef<
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        onTouchStart={handleMouseDown}
-        onTouchMove={handleMouseMove}
-        onTouchEnd={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         onWheel={handleWheel}
-        className="cursor-crosshair touch-none"
+        className="cursor-crosshair"
+        style={{ touchAction: "none" }}
       >
         <Layer>
           {/* 完了したストローク */}
