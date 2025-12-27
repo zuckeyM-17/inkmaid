@@ -6,7 +6,7 @@ import DynamicDiagramCanvas from "@/components/DynamicDiagramCanvas";
 import type { Stroke } from "@/components/HandwritingCanvas";
 import MermaidCodePanel from "@/components/MermaidCodePanel";
 import VersionHistoryPanel from "@/components/VersionHistoryPanel";
-import { useAIStream } from "@/lib/hooks/useAIStream";
+import { useMultiStageAIStream } from "@/lib/hooks/useMultiStageAIStream";
 import { trpc } from "@/lib/trpc/client";
 import { DIAGRAM_TYPE_INFO, type DiagramType } from "@/server/db/schema";
 import { useParams, useRouter } from "next/navigation";
@@ -55,8 +55,8 @@ export default function ProjectDetailPage() {
   );
   const [previewStrokes, setPreviewStrokes] = useState<Stroke[]>([]);
 
-  // AIストリーミングフック
-  const aiStream = useAIStream();
+  // AIストリーミングフック（多段階処理対応）
+  const aiStream = useMultiStageAIStream();
 
   // キャンバスコンテナのサイズ管理
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -268,7 +268,7 @@ export default function ProjectDetailPage() {
       // AIストリーム開始時に思考パネルを自動的に開く
       setShowThinkingPanel(true);
 
-      // ストリーミングAPIを呼び出し
+      // ストリーミングAPIを呼び出し（多段階処理対応）
       aiStream.interpretStrokes(
         {
           strokes: data.strokes,
@@ -277,11 +277,12 @@ export default function ProjectDetailPage() {
           canvasImage: data.canvasImage,
           hint: data.hint,
           diagramType: (projectData?.diagramType as DiagramType) ?? "flowchart",
+          canvasSize: { width: canvasSize.width, height: canvasSize.height },
         },
         handleStreamComplete,
       );
     },
-    [aiStream, projectData?.diagramType, handleStreamComplete],
+    [aiStream, projectData?.diagramType, handleStreamComplete, canvasSize],
   );
 
   /**
@@ -573,6 +574,8 @@ export default function ProjectDetailPage() {
               resultReason={lastAiResult}
               errorMessage={aiStream.errorMessage}
               onClose={() => setShowThinkingPanel(false)}
+              progress={aiStream.progress}
+              multiStageState={aiStream.multiStageState}
             />
           </div>
         </div>

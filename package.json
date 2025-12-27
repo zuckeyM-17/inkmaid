@@ -43,7 +43,7 @@
     "vitest": "^2.1.8"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx}": ["biome check --write", "biome format --write"],
+    "*.{ts,tsx,js,jsx}": ["biome check --write"],
     "*.{json,md}": ["biome format --write"]
   },
   "packageManager": "pnpm@9.15.1",

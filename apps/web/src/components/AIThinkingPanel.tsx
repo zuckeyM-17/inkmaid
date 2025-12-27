@@ -15,6 +15,20 @@ type AIThinkingPanelProps = {
   onClose: () => void;
   /** パネルの表示/非表示 */
   isOpen: boolean;
+  /** 多段階処理の進捗情報（オプション） */
+  progress?: {
+    current: number;
+    total: number;
+    message: string;
+  };
+  /** 多段階処理の状態（オプション） */
+  multiStageState?:
+    | "idle"
+    | "stage1"
+    | "stage2a"
+    | "stage2b"
+    | "completed"
+    | "error";
 };
 
 /**
@@ -27,6 +41,8 @@ export default function AIThinkingPanel({
   errorMessage,
   onClose,
   isOpen,
+  progress,
+  multiStageState,
 }: AIThinkingPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -55,7 +71,53 @@ export default function AIThinkingPanel({
             </span>
           )}
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-slate-400 hover:text-slate-200 transition-colors text-lg"
+          title="閉じる"
+        >
+          ×
+        </button>
       </div>
+
+      {/* 多段階処理の進捗表示 */}
+      {progress &&
+        progress.total > 0 &&
+        multiStageState &&
+        multiStageState !== "idle" && (
+          <div className="px-4 py-3 border-b border-slate-700 bg-slate-800/50">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex-1 bg-slate-700 rounded-full h-2">
+                <div
+                  className="bg-violet-500 h-2 rounded-full transition-all duration-300"
+                  style={{
+                    width: `${(progress.current / progress.total) * 100}%`,
+                  }}
+                />
+              </div>
+              <span className="text-xs text-slate-400 min-w-12 text-right">
+                {progress.current}/{progress.total}
+              </span>
+            </div>
+            <p className="text-xs text-slate-300">{progress.message}</p>
+            {multiStageState === "stage1" && (
+              <p className="text-xs text-slate-500 mt-1">
+                全体構造を解析中... 主要な要素を抽出しています
+              </p>
+            )}
+            {multiStageState === "stage2a" && (
+              <p className="text-xs text-slate-500 mt-1">
+                詳細を追加中... 既存の構造に詳細を統合しています
+              </p>
+            )}
+            {multiStageState === "stage2b" && (
+              <p className="text-xs text-slate-500 mt-1">
+                領域ごとに処理中... 分割処理で詳細を追加しています
+              </p>
+            )}
+          </div>
+        )}
 
       {/* 思考ログ表示エリア */}
       <div
