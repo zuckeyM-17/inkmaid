@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# プッシュ前に型チェックを実行
+echo "🔍 Running type check before push..."
+pnpm --filter web exec tsc --noEmit
+
+if [ $? -ne 0 ]; then
+  echo "❌ Type check failed. Please fix the errors before pushing."
+  exit 1
+fi
+
+echo "✅ Type check passed!"

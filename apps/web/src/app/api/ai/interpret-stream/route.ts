@@ -273,10 +273,14 @@ export async function POST(request: Request) {
     let minY = Number.POSITIVE_INFINITY;
     let maxY = Number.NEGATIVE_INFINITY;
     for (let i = 0; i < points.length; i += 2) {
-      minX = Math.min(minX, points[i]);
-      maxX = Math.max(maxX, points[i]);
-      minY = Math.min(minY, points[i + 1]);
-      maxY = Math.max(maxY, points[i + 1]);
+      const x = points[i];
+      const y = points[i + 1];
+      if (x !== undefined && y !== undefined) {
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+      }
     }
     return {
       minX,
@@ -298,6 +302,15 @@ export async function POST(request: Request) {
       const endX = points[points.length - 2];
       const endY = points[points.length - 1];
 
+      if (
+        startX === undefined ||
+        startY === undefined ||
+        endX === undefined ||
+        endY === undefined
+      ) {
+        return `ストローク${index + 1}: 無効なデータ`;
+      }
+
       const { minX, maxX, minY, maxY, centerX, centerY } =
         getStrokeBounds(points);
       const width = maxX - minX;
@@ -307,7 +320,7 @@ export async function POST(request: Request) {
         Math.sqrt((startX - endX) ** 2 + (startY - endY) ** 2) < 50;
       const aspectRatio = width / (height || 1);
 
-      return `ストローク${index + 1}: 
+      return `ストローク${index + 1}:
   - 点数: ${numPoints}
   - 範囲: (${Math.round(minX)}, ${Math.round(minY)}) ～ (${Math.round(maxX)}, ${Math.round(maxY)})
   - 中心: (${Math.round(centerX)}, ${Math.round(centerY)})

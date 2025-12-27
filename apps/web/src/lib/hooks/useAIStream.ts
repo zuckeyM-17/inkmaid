@@ -64,8 +64,8 @@ export function useAIStream() {
     );
 
     return {
-      mermaidCode: mermaidMatch ? mermaidMatch[1].trim() : null,
-      reason: reasonMatch ? reasonMatch[1].trim() : null,
+      mermaidCode: mermaidMatch?.[1]?.trim() ?? null,
+      reason: reasonMatch?.[1]?.trim() ?? null,
     };
   }, []);
 

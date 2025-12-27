@@ -242,8 +242,8 @@ function parseAiResponse(text: string): {
   );
 
   return {
-    mermaidCode: mermaidMatch ? mermaidMatch[1].trim() : null,
-    reason: reasonMatch ? reasonMatch[1].trim() : null,
+    mermaidCode: mermaidMatch?.[1]?.trim() ?? null,
+    reason: reasonMatch?.[1]?.trim() ?? null,
   };
 }
 
@@ -421,10 +421,14 @@ ${currentMermaidCode}
         let minY = Number.POSITIVE_INFINITY;
         let maxY = Number.NEGATIVE_INFINITY;
         for (let i = 0; i < points.length; i += 2) {
-          minX = Math.min(minX, points[i]);
-          maxX = Math.max(maxX, points[i]);
-          minY = Math.min(minY, points[i + 1]);
-          maxY = Math.max(maxY, points[i + 1]);
+          const x = points[i];
+          const y = points[i + 1];
+          if (x !== undefined && y !== undefined) {
+            minX = Math.min(minX, x);
+            maxX = Math.max(maxX, x);
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+          }
         }
         return {
           minX,
@@ -448,6 +452,8 @@ ${currentMermaidCode}
         // 最後の2本のストロークをチェック
         const stroke1 = strokes[strokes.length - 2];
         const stroke2 = strokes[strokes.length - 1];
+
+        if (!stroke1 || !stroke2) return null;
 
         const p1 = stroke1.points;
         const p2 = stroke2.points;
@@ -475,10 +481,32 @@ ${currentMermaidCode}
         // X印の条件: 中心が近く（50px以内）、サイズが似ている（差が50%以内）
         if (centerDist < 80 && sizeDiff < 0.5) {
           // 線が交差する形状かチェック（対角線的な動き）
-          const start1 = { x: p1[0], y: p1[1] };
-          const end1 = { x: p1[p1.length - 2], y: p1[p1.length - 1] };
-          const start2 = { x: p2[0], y: p2[1] };
-          const end2 = { x: p2[p2.length - 2], y: p2[p2.length - 1] };
+          const start1X = p1[0];
+          const start1Y = p1[1];
+          const end1X = p1[p1.length - 2];
+          const end1Y = p1[p1.length - 1];
+          const start2X = p2[0];
+          const start2Y = p2[1];
+          const end2X = p2[p2.length - 2];
+          const end2Y = p2[p2.length - 1];
+
+          if (
+            start1X === undefined ||
+            start1Y === undefined ||
+            end1X === undefined ||
+            end1Y === undefined ||
+            start2X === undefined ||
+            start2Y === undefined ||
+            end2X === undefined ||
+            end2Y === undefined
+          ) {
+            return null;
+          }
+
+          const start1 = { x: start1X, y: start1Y };
+          const end1 = { x: end1X, y: end1Y };
+          const start2 = { x: start2X, y: start2Y };
+          const end2 = { x: end2X, y: end2Y };
 
           // 両方のストロークが斜め線か（開始点と終了点のX,Yが両方変化）
           const isDiagonal1 =
@@ -535,6 +563,15 @@ ${currentMermaidCode}
           const endX = points[points.length - 2];
           const endY = points[points.length - 1];
 
+          if (
+            startX === undefined ||
+            startY === undefined ||
+            endX === undefined ||
+            endY === undefined
+          ) {
+            return `ストローク${index + 1}: 無効なデータ`;
+          }
+
           // バウンディングボックスを計算
           const { minX, maxX, minY, maxY, centerX, centerY } =
             getStrokeBounds(points);
@@ -548,7 +585,7 @@ ${currentMermaidCode}
           // アスペクト比
           const aspectRatio = width / (height || 1);
 
-          return `ストローク${index + 1}: 
+          return `ストローク${index + 1}:
   - 点数: ${numPoints}
   - 範囲: (${Math.round(minX)}, ${Math.round(minY)}) ～ (${Math.round(maxX)}, ${Math.round(maxY)})
   - 中心: (${Math.round(centerX)}, ${Math.round(centerY)})

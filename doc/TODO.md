@@ -1,6 +1,6 @@
 # 📋 TODO - 次やること
 
-> 最終更新: 2025-12-23
+> 最終更新: 2025-12-27
 
 ---
 
@@ -10,12 +10,13 @@
 ### 開発体験（DX）の改善
 - [x] ~~Claude Code用ドキュメントの作成~~ ✅
 - [x] ~~カスタムスラッシュコマンドの作成~~ ✅
-- [ ] Git Hooksの導入（Husky + lint-staged）
-- [ ] VS Code拡張機能の推奨設定（`.vscode/extensions.json`）
-- [ ] VS Code設定の統一（`.vscode/settings.json`）
+- [x] ~~Git Hooksの導入（Husky + lint-staged）~~ ✅ (2025-12-23)
+- [x] ~~VS Code拡張機能の推奨設定（`.vscode/extensions.json`）~~ ✅ (2025-12-23)
+- [x] ~~VS Code設定の統一（`.vscode/settings.json`）~~ ✅ (2025-12-23)
 
 ### コード品質の向上
-- [ ] TypeScript設定の厳格化（`noUncheckedIndexedAccess`、`noImplicitReturns`など）
+- [x] ~~TypeScript設定の厳格化（`noUncheckedIndexedAccess`、`noImplicitReturns`など）~~ ✅ (2025-12-23)
+- [x] ~~CIの型チェックエラー修正（配列アクセス時のundefinedチェック）~~ ✅ (2025-12-27)
 
 ---
 
@@ -79,6 +80,7 @@
 ### 開発環境
 - [x] ~~Claude Code用ドキュメントの作成~~ ✅
 - [x] ~~カスタムスラッシュコマンドの作成~~ ✅
+- [x] ~~CIの型チェックエラー修正~~ ✅ (2025-12-27)
 
 ---
 

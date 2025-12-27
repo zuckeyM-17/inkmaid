@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -65,6 +66,13 @@ export const diagramRouter = router({
           diagramType,
         })
         .returning();
+
+      if (!project) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "プロジェクトの作成に失敗しました",
+        });
+      }
 
       // 初期バージョンを作成（図の種類に応じたテンプレートを使用）
       const mermaidCode =
@@ -140,6 +148,13 @@ export const diagramRouter = router({
         })
         .returning();
 
+      if (!version) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "バージョンの作成に失敗しました",
+        });
+      }
+
       // プロジェクトのupdatedAtを更新
       await ctx.db
         .update(projects)
@@ -183,6 +198,13 @@ export const diagramRouter = router({
           reason: input.reason,
         })
         .returning();
+
+      if (!version) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "バージョンの作成に失敗しました",
+        });
+      }
 
       // ストロークデータを保存（存在する場合のみ）
       if (input.strokes.length > 0) {
@@ -360,6 +382,13 @@ export const diagramRouter = router({
           reason: `v${targetVersion.versionNumber} にロールバック`,
         })
         .returning();
+
+      if (!newVersion) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "ロールバックバージョンの作成に失敗しました",
+        });
+      }
 
       // 元のバージョンのストロークデータがあればコピー
       const originalStrokes = await ctx.db.query.handwritingStrokes.findFirst({
