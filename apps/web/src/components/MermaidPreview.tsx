@@ -34,22 +34,22 @@ function extractNodePositions(
       const fullId = node.id || "";
       // flowchart-A-0 → A のように抽出
       const idMatch = fullId.match(/flowchart-([^-]+)-/);
-      const nodeId = idMatch ? idMatch[1] : fullId;
+      const nodeId: string = idMatch?.[1] ?? fullId;
 
       // ラベルテキストを取得
       const labelElement = node.querySelector(
         ".nodeLabel, text, foreignObject",
       );
-      const label = labelElement?.textContent?.trim() || nodeId;
+      const label: string = labelElement?.textContent?.trim() ?? nodeId;
 
       // ノードのbounding boxを取得
       const nodeRect = node.getBoundingClientRect();
 
       // コンテナ内の相対座標に変換
-      const x = nodeRect.left - containerRect.left;
-      const y = nodeRect.top - containerRect.top;
-      const nodeWidth = nodeRect.width;
-      const nodeHeight = nodeRect.height;
+      const x: number = nodeRect.left - containerRect.left;
+      const y: number = nodeRect.top - containerRect.top;
+      const nodeWidth: number = nodeRect.width;
+      const nodeHeight: number = nodeRect.height;
 
       positions.push({
         id: nodeId,

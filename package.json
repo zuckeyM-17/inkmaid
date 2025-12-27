@@ -12,6 +12,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
+    "typecheck": "pnpm --filter web exec tsc --noEmit",
     "test": "vitest",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",

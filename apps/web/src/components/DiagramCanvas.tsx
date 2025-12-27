@@ -238,11 +238,19 @@ export default function DiagramCanvas({
 
           const points = stroke.points;
           if (points.length >= 2) {
-            ctx.moveTo(points[0], points[1]);
-            for (let i = 2; i < points.length; i += 2) {
-              ctx.lineTo(points[i], points[i + 1]);
+            const firstX = points[0];
+            const firstY = points[1];
+            if (firstX !== undefined && firstY !== undefined) {
+              ctx.moveTo(firstX, firstY);
+              for (let i = 2; i < points.length; i += 2) {
+                const x = points[i];
+                const y = points[i + 1];
+                if (x !== undefined && y !== undefined) {
+                  ctx.lineTo(x, y);
+                }
+              }
+              ctx.stroke();
             }
-            ctx.stroke();
           }
         }
       }
