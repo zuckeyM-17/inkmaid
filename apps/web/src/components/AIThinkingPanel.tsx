@@ -95,7 +95,9 @@ export default function AIThinkingPanel({
       {progress &&
         progress.total > 0 &&
         multiStageState &&
-        multiStageState !== "idle" && (
+        multiStageState !== "idle" &&
+        multiStageState !== "completed" &&
+        multiStageState !== "error" && (
           <div className="px-4 py-3 border-b border-slate-700 bg-slate-800/50">
             <div className="flex items-center gap-2 mb-2">
               <div className="flex-1 bg-slate-700 rounded-full h-2">

@@ -113,40 +113,12 @@ function shouldUseMultiStageProcessing(strokes: Stroke[]): boolean {
 }
 
 /**
- * 通常処理（単一API呼び出し）
+ * SSEストリームを読み取り、thinking と output を収集する共通関数
  */
-async function normalProcessing(
-  params: InterpretParams,
-  signal: AbortSignal,
+async function readSSEStream(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
   onProgress: (thinking: string, output: string) => void,
-): Promise<ParsedResult> {
-  const response = await fetch("/api/ai/interpret-stream", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      strokes: params.strokes,
-      currentMermaidCode: params.currentMermaidCode,
-      nodePositions: params.nodePositions,
-      canvasImage: params.canvasImage,
-      hint: params.hint,
-      diagramType: params.diagramType,
-      mode: "normal",
-    }),
-    signal,
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || "API呼び出しに失敗しました");
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error("レスポンスボディを読み取れません");
-  }
-
+): Promise<{ thinkingBuffer: string; outputBuffer: string }> {
   const decoder = new TextDecoder();
   let thinkingBuffer = "";
   let outputBuffer = "";
@@ -200,6 +172,46 @@ async function normalProcessing(
 
     if (streamDone) break;
   }
+
+  return { thinkingBuffer, outputBuffer };
+}
+
+/**
+ * 通常処理（単一API呼び出し）
+ */
+async function normalProcessing(
+  params: InterpretParams,
+  signal: AbortSignal,
+  onProgress: (thinking: string, output: string) => void,
+): Promise<ParsedResult> {
+  const response = await fetch("/api/ai/interpret-stream", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      strokes: params.strokes,
+      currentMermaidCode: params.currentMermaidCode,
+      nodePositions: params.nodePositions,
+      canvasImage: params.canvasImage,
+      hint: params.hint,
+      diagramType: params.diagramType,
+      mode: "normal",
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || "API呼び出しに失敗しました");
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("レスポンスボディを読み取れません");
+  }
+
+  const { outputBuffer } = await readSSEStream(reader, onProgress);
 
   return parseResult(outputBuffer);
 }
@@ -251,59 +263,10 @@ async function processStage1(
     throw new Error("レスポンスボディを読み取れません");
   }
 
-  const decoder = new TextDecoder();
-  let thinkingBuffer = "";
-  let outputBuffer = "";
-  let buffer = "";
-  let streamDone = false;
-
-  while (!streamDone) {
-    const { done, value } = await reader.read();
-    if (done) {
-      streamDone = true;
-      break;
-    }
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      // 空行をスキップ
-      if (!line.trim()) continue;
-
-      if (!line.startsWith("data: ")) continue;
-
-      const data = line.slice(6).trim();
-      if (data === "[DONE]") {
-        streamDone = true;
-        break;
-      }
-
-      if (!data) continue;
-
-      try {
-        const event = JSON.parse(data);
-
-        if (event.type === "reasoning") {
-          thinkingBuffer += event.text || "";
-          onProgress(thinkingBuffer, outputBuffer);
-        } else if (event.type === "text-delta") {
-          outputBuffer += event.text || "";
-          onProgress(thinkingBuffer, outputBuffer);
-        } else if (event.type === "error") {
-          throw new Error(event.error || "Unknown error");
-        }
-      } catch (e) {
-        // JSONパースエラーの場合は警告を出して続行
-        if (data !== "[DONE]" && data.trim()) {
-          console.warn("SSE parse error:", e, "Data:", data);
-        }
-      }
-    }
-
-    if (streamDone) break;
-  }
+  const { thinkingBuffer, outputBuffer } = await readSSEStream(
+    reader,
+    onProgress,
+  );
 
   const { mermaidCode, reason } = parseResult(outputBuffer);
 
@@ -358,59 +321,10 @@ async function processStage2A(
     throw new Error("レスポンスボディを読み取れません");
   }
 
-  const decoder = new TextDecoder();
-  let thinkingBuffer = "";
-  let outputBuffer = "";
-  let buffer = "";
-  let streamDone = false;
-
-  while (!streamDone) {
-    const { done, value } = await reader.read();
-    if (done) {
-      streamDone = true;
-      break;
-    }
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-
-    for (const line of lines) {
-      // 空行をスキップ
-      if (!line.trim()) continue;
-
-      if (!line.startsWith("data: ")) continue;
-
-      const data = line.slice(6).trim();
-      if (data === "[DONE]") {
-        streamDone = true;
-        break;
-      }
-
-      if (!data) continue;
-
-      try {
-        const event = JSON.parse(data);
-
-        if (event.type === "reasoning") {
-          thinkingBuffer += event.text || "";
-          onProgress(thinkingBuffer, outputBuffer);
-        } else if (event.type === "text-delta") {
-          outputBuffer += event.text || "";
-          onProgress(thinkingBuffer, outputBuffer);
-        } else if (event.type === "error") {
-          throw new Error(event.error || "Unknown error");
-        }
-      } catch (e) {
-        // JSONパースエラーの場合は警告を出して続行
-        if (data !== "[DONE]" && data.trim()) {
-          console.warn("SSE parse error:", e, "Data:", data);
-        }
-      }
-    }
-
-    if (streamDone) break;
-  }
+  const { thinkingBuffer, outputBuffer } = await readSSEStream(
+    reader,
+    onProgress,
+  );
 
   const { mermaidCode, reason } = parseResult(outputBuffer);
 
@@ -584,20 +498,20 @@ export function useMultiStageAIStream() {
             },
           );
 
+          // 処理完了状態に更新（onComplete呼び出しの前に確実に状態を更新）
+          setState((prev) => ({
+            ...prev,
+            isProcessing: false,
+            multiStageState: "completed",
+          }));
+
+          // onCompleteコールバックを実行
           onComplete({
             mermaidCode: result.mermaidCode,
             reason: result.reason,
             thinking: finalThinking,
           });
 
-          // 次のイベントループで状態を更新（onComplete内の非同期処理を考慮）
-          setTimeout(() => {
-            setState((prev) => ({
-              ...prev,
-              isProcessing: false,
-              multiStageState: "completed",
-            }));
-          }, 0);
           return;
         }
 
@@ -650,20 +564,20 @@ export function useMultiStageAIStream() {
 
         if (remainingStrokes.length === 0) {
           // Stage 1の結果で完了
+          // 処理完了状態に更新（onComplete呼び出しの前に確実に状態を更新）
+          setState((prev) => ({
+            ...prev,
+            isProcessing: false,
+            multiStageState: "completed",
+          }));
+
+          // onCompleteコールバックを実行
           onComplete({
             mermaidCode: stage1Result.mermaidCode,
             reason: stage1Result.reason,
             thinking: stage1Result.thinking,
           });
 
-          // 次のイベントループで状態を更新（onComplete内の非同期処理を考慮）
-          setTimeout(() => {
-            setState((prev) => ({
-              ...prev,
-              isProcessing: false,
-              multiStageState: "completed",
-            }));
-          }, 0);
           return;
         }
 
@@ -702,20 +616,19 @@ export function useMultiStageAIStream() {
             },
           );
 
+          // 処理完了状態に更新（onComplete呼び出しの前に確実に状態を更新）
+          setState((prev) => ({
+            ...prev,
+            isProcessing: false,
+            multiStageState: "completed",
+          }));
+
+          // onCompleteコールバックを実行
           onComplete({
             mermaidCode: stage2Result.mermaidCode,
             reason: stage2Result.reason,
             thinking: `${stage1Result.thinking}\n\n${stage2Result.thinking}`,
           });
-
-          // 次のイベントループで状態を更新（onComplete内の非同期処理を考慮）
-          setTimeout(() => {
-            setState((prev) => ({
-              ...prev,
-              isProcessing: false,
-              multiStageState: "completed",
-            }));
-          }, 0);
         } else {
           // Stage 2A: 直接追加
           setState((prev) => ({
@@ -742,26 +655,32 @@ export function useMultiStageAIStream() {
             },
           );
 
+          // 処理完了状態に更新（onComplete呼び出しの前に確実に状態を更新）
+          setState((prev) => ({
+            ...prev,
+            isProcessing: false,
+            multiStageState: "completed",
+          }));
+
+          // onCompleteコールバックを実行
           onComplete({
             mermaidCode: stage2Result.mermaidCode,
             reason: stage2Result.reason,
             thinking: `${stage1Result.thinking}\n\n${stage2Result.thinking}`,
           });
-
-          // 次のイベントループで状態を更新（onComplete内の非同期処理を考慮）
-          setTimeout(() => {
-            setState((prev) => ({
-              ...prev,
-              isProcessing: false,
-              multiStageState: "completed",
-            }));
-          }, 0);
         }
       } catch (error) {
+        // AbortError（キャンセル）の場合も状態を適切に更新
         if ((error as Error).name === "AbortError") {
+          setState((prev) => ({
+            ...prev,
+            isProcessing: false,
+            multiStageState: "idle",
+          }));
           return;
         }
 
+        // その他のエラーの場合
         const errorMessage =
           error instanceof Error ? error.message : "不明なエラーが発生しました";
         setState((prev) => ({

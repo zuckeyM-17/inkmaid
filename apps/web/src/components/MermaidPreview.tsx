@@ -136,6 +136,7 @@ export default function MermaidPreview({
   }, []);
 
   // ダイアグラムのレンダリング
+  // biome-ignore lint/correctness/useExhaustiveDependencies: onParseError/onRenderSuccessを依存配列に含めると無限ループが発生するため除外
   useEffect(() => {
     if (!isInitialized || !containerRef.current || !code.trim()) {
       return;
@@ -187,7 +188,7 @@ export default function MermaidPreview({
     };
 
     renderDiagram();
-  }, [code, id, isInitialized, onParseError, onRenderSuccess]);
+  }, [code, id, isInitialized]);
 
   return (
     <div

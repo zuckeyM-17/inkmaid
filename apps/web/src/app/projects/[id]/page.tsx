@@ -121,12 +121,19 @@ export default function ProjectDetailPage() {
   // Stage 1完了時のコールバック（中間結果を反映）
   const handleStage1Complete = useCallback(
     (result: { mermaidCode: string; reason: string }) => {
-      // Stage 1の結果を中間結果として反映
-      setEditingMermaidCode(result.mermaidCode);
-      setCanvasKey((prev) => prev + 1);
-      setLastAiResult(
-        `📊 全体構造を抽出しました（中間結果）: ${result.reason}`,
-      );
+      try {
+        // Stage 1の結果を中間結果として反映
+        setEditingMermaidCode(result.mermaidCode);
+        setCanvasKey((prev) => prev + 1);
+        setLastAiResult(
+          `📊 全体構造を抽出しました（中間結果）: ${result.reason}`,
+        );
+      } catch (error) {
+        console.error("handleStage1Complete でエラーが発生:", error);
+        setLastAiResult(
+          `エラーが発生しました: ${error instanceof Error ? error.message : "不明なエラー"}`,
+        );
+      }
     },
     [],
   );
@@ -138,27 +145,34 @@ export default function ProjectDetailPage() {
       reason: string | null;
       thinking: string;
     }) => {
-      if (result.mermaidCode) {
-        setEditingMermaidCode(result.mermaidCode);
-        setEditingStrokes([]); // 変換後はストロークをクリア
-        setCanvasKey((prev) => prev + 1);
-        setLastAiResult(
-          `✅ 詳細を追加しました（最終結果）: ${result.reason || "変換が完了しました"}`,
-        );
+      try {
+        if (result.mermaidCode) {
+          setEditingMermaidCode(result.mermaidCode);
+          setEditingStrokes([]); // 変換後はストロークをクリア
+          setCanvasKey((prev) => prev + 1);
+          setLastAiResult(
+            `✅ 詳細を追加しました（最終結果）: ${result.reason || "変換が完了しました"}`,
+          );
 
-        // DBにも保存
-        if (projectId) {
-          saveDiagramWithStrokes.mutate({
-            projectId,
-            mermaidCode: result.mermaidCode,
-            strokes: [],
-            updateType: "handwriting",
-            reason: result.reason || "手書きストロークからAIで変換",
-          });
+          // DBにも保存
+          if (projectId) {
+            saveDiagramWithStrokes.mutate({
+              projectId,
+              mermaidCode: result.mermaidCode,
+              strokes: [],
+              updateType: "handwriting",
+              reason: result.reason || "手書きストロークからAIで変換",
+            });
+          }
+        } else {
+          setLastAiResult(
+            "ストロークを解釈できませんでした。もう一度お試しください。",
+          );
         }
-      } else {
+      } catch (error) {
+        console.error("handleStreamComplete でエラーが発生:", error);
         setLastAiResult(
-          "ストロークを解釈できませんでした。もう一度お試しください。",
+          `エラーが発生しました: ${error instanceof Error ? error.message : "不明なエラー"}`,
         );
       }
     },
@@ -171,9 +185,13 @@ export default function ProjectDetailPage() {
       if (data.wasFixed && data.updatedMermaidCode) {
         setEditingMermaidCode(data.updatedMermaidCode);
         setCanvasKey((prev) => prev + 1);
-        setLastAiResult(
-          `🔧 エラーを修正しました（${data.retryCount}回目）: ${data.reasoning}`,
-        );
+
+        // 思考過程があれば含める
+        const resultMessage = data.thinking
+          ? `🔧 エラーを修正しました（${data.retryCount}/${MAX_RETRY_COUNT}回目）\n\n【修正内容】\n${data.reasoning}\n\n【AI思考過程】\n${data.thinking}`
+          : `🔧 エラーを修正しました（${data.retryCount}/${MAX_RETRY_COUNT}回目）: ${data.reasoning}`;
+
+        setLastAiResult(resultMessage);
         setErrorRetryCount(0); // リセット
 
         // DBにも保存
@@ -194,7 +212,7 @@ export default function ProjectDetailPage() {
       }
     },
     onError: (error) => {
-      setLastAiResult(`修正エラー: ${error.message}`);
+      setLastAiResult(`❌ 修正エラー: ${error.message}`);
       setErrorRetryCount(0);
     },
   });
@@ -312,12 +330,18 @@ export default function ProjectDetailPage() {
    */
   const handleMermaidParseError = useCallback(
     (error: string, brokenCode: string) => {
+      // 既にエラー修正中の場合は無視（無限ループを防ぐ）
+      if (fixMermaidError.isPending) {
+        return;
+      }
+
       // リトライ回数をチェック
       if (errorRetryCount >= MAX_RETRY_COUNT) {
         setLastAiResult(
           `❌ 自動修正に${MAX_RETRY_COUNT}回失敗しました。コードを手動で確認してください。\nエラー: ${error}`,
         );
         setErrorRetryCount(0);
+        setShowThinkingPanel(true); // エラー詳細を見せる
         return;
       }
 
@@ -326,6 +350,7 @@ export default function ProjectDetailPage() {
         `⚠️ 構文エラーを検出: ${error}\n🔧 自動修正中... (${errorRetryCount + 1}/${MAX_RETRY_COUNT}回目)`,
       );
       setErrorRetryCount((prev) => prev + 1);
+      setShowThinkingPanel(true); // AI思考ログパネルを自動的に開く
 
       fixMermaidError.mutate({
         brokenCode,
