@@ -185,9 +185,13 @@ export default function ProjectDetailPage() {
       if (data.wasFixed && data.updatedMermaidCode) {
         setEditingMermaidCode(data.updatedMermaidCode);
         setCanvasKey((prev) => prev + 1);
-        setLastAiResult(
-          `🔧 エラーを修正しました（${data.retryCount}回目）: ${data.reasoning}`,
-        );
+
+        // 思考過程があれば含める
+        const resultMessage = data.thinking
+          ? `🔧 エラーを修正しました（${data.retryCount}/${MAX_RETRY_COUNT}回目）\n\n【修正内容】\n${data.reasoning}\n\n【AI思考過程】\n${data.thinking}`
+          : `🔧 エラーを修正しました（${data.retryCount}/${MAX_RETRY_COUNT}回目）: ${data.reasoning}`;
+
+        setLastAiResult(resultMessage);
         setErrorRetryCount(0); // リセット
 
         // DBにも保存
@@ -208,7 +212,7 @@ export default function ProjectDetailPage() {
       }
     },
     onError: (error) => {
-      setLastAiResult(`修正エラー: ${error.message}`);
+      setLastAiResult(`❌ 修正エラー: ${error.message}`);
       setErrorRetryCount(0);
     },
   });
@@ -326,12 +330,18 @@ export default function ProjectDetailPage() {
    */
   const handleMermaidParseError = useCallback(
     (error: string, brokenCode: string) => {
+      // 既にエラー修正中の場合は無視（無限ループを防ぐ）
+      if (fixMermaidError.isPending) {
+        return;
+      }
+
       // リトライ回数をチェック
       if (errorRetryCount >= MAX_RETRY_COUNT) {
         setLastAiResult(
           `❌ 自動修正に${MAX_RETRY_COUNT}回失敗しました。コードを手動で確認してください。\nエラー: ${error}`,
         );
         setErrorRetryCount(0);
+        setShowThinkingPanel(true); // エラー詳細を見せる
         return;
       }
 
@@ -340,6 +350,7 @@ export default function ProjectDetailPage() {
         `⚠️ 構文エラーを検出: ${error}\n🔧 自動修正中... (${errorRetryCount + 1}/${MAX_RETRY_COUNT}回目)`,
       );
       setErrorRetryCount((prev) => prev + 1);
+      setShowThinkingPanel(true); // AI思考ログパネルを自動的に開く
 
       fixMermaidError.mutate({
         brokenCode,
