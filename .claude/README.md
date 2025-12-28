@@ -314,6 +314,27 @@ pnpm test -- --watch
 pnpm git:clean-branches
 ```
 
+### lint-staged（Husky pre-commit hook）
+
+```bash
+# ステージングされたファイルに対してlint-stagedをテスト実行
+pnpm lint-staged --diff="HEAD"
+```
+
+**重要**: lint-staged設定の統一ルール
+
+`package.json`の`lint-staged`設定は以下を使用すること：
+
+```json
+"lint-staged": {
+  "*.{ts,tsx,js,jsx}": ["biome check --write"],
+  "*.{json,md}": ["biome check --write"]
+}
+```
+
+- ❌ **禁止**: `biome format --write`を直接使用しない
+- ✅ **推奨**: すべてのファイルタイプで`biome check --write`を使用（フォーマットも含む）
+
 ---
 
 ## Git Worktree での複数環境構築
@@ -401,17 +422,29 @@ graph LR
    - 型安全性を確保
    - 適切なエラーハンドリングを実装
 
-4. **CIチェック（必須）**
+4. **CIチェック（必須）** ⚠️
+
+   作業完了前に以下のチェックを**必ず**実行してください：
+
    ```bash
-   # Lint チェック
+   # 1. Lint チェック（必須）
    pnpm lint
-   
-   # 型チェック
+
+   # 2. 型チェック（必須）
    pnpm --filter web exec tsc --noEmit
-   
-   # 自動修正が必要な場合
+
+   # 3. Husky/lint-stagedチェック（必須）
+   pnpm lint-staged --diff="HEAD"
+
+   # 4. ビルドチェック（大きな変更の場合に推奨）
+   DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy pnpm build
+
+   # エラーがある場合は自動修正を試みる
    pnpm lint:fix
    ```
+
+   - ❌ エラーがある場合は作業を完了としない
+   - ✅ すべてのチェックに通過してから次のステップへ
 
 5. **開発ログ更新**
    - `doc/logs/YYYY/MM/YYYYMMDD-N.md` を作成/更新
@@ -597,7 +630,7 @@ mkdir -p doc/logs/2025/12
 
 #### 4. **CIチェック（必須）** ⚠️
 
-**作業完了前に、CIと同じチェックを必ず実行すること：**
+**🔴 作業完了前に、CIと同じチェックを必ず実行すること：**
 
 ```bash
 # 1. Lint チェック（Biome）- 必須
@@ -606,21 +639,33 @@ pnpm lint
 # 2. 型チェック（TypeScript）- 必須
 pnpm --filter web exec tsc --noEmit
 
-# 3. ビルドチェック（大きな変更の場合に推奨）
+# 3. Husky/lint-stagedチェック（必須）
+pnpm lint-staged --diff="HEAD"
+
+# 4. ビルドチェック（大きな変更の場合に推奨）
 DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy pnpm build
 ```
 
-| チェック | コマンド | 必須 |
-|---------|---------|------|
-| Lint | `pnpm lint` | ✅ |
-| Type Check | `pnpm --filter web exec tsc --noEmit` | ✅ |
-| Build | `pnpm build` | 推奨 |
+| チェック | コマンド | 説明 | 必須度 |
+|---------|---------|------|--------|
+| **Lint** | `pnpm lint` | Biomeによるコードスタイル・構文チェック | 🔴 必須 |
+| **Type Check** | `pnpm --filter web exec tsc --noEmit` | TypeScriptの型エラーチェック | 🔴 必須 |
+| **Husky/lint-staged** | `pnpm lint-staged --diff="HEAD"` | コミット時のlint-staged動作確認 | 🔴 必須 |
+| **Build** | `DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy pnpm build` | Next.jsのビルド確認 | 🟢 推奨 |
 
 **自動修正が必要な場合:**
 
 ```bash
 pnpm lint:fix
 ```
+
+**重要な注意事項:**
+
+- ❌ Lintチェック、型チェック、Husky/lint-stagedチェックのいずれかに失敗したら作業を完了としない
+- ✅ すべてのチェックに通過するまで修正を続ける
+- ⚠️ `package.json`を変更した場合は、lint-staged設定が正しいか特に注意
+- 📝 Markdownファイル（`*.md`）はlint-stagedから除外されている（biomeがMarkdownをサポートしていないため）
+- 🚀 実際のコミット前には、huskyのpre-commitフックが自動的に`pnpm lint-staged`を実行する
 
 #### 5. **動作確認**
 
@@ -805,26 +850,38 @@ GitHub Actionsで以下のチェックが自動実行されます（PRおよびm
 
 ### CIチェック項目
 
-| ジョブ | コマンド | 説明 |
-|-------|---------|------|
-| **Lint** | `pnpm lint` | Biomeによるコードスタイル・構文チェック |
-| **Type Check** | `pnpm --filter web exec tsc --noEmit` | TypeScriptの型エラーチェック |
-| **Build** | `pnpm build` | Next.jsのビルドが成功するか確認 |
+| ジョブ | コマンド | 説明 | 必須 |
+|-------|---------|------|------|
+| **Lint** | `pnpm lint` | Biomeによるコードスタイル・構文チェック | 🔴 必須 |
+| **Type Check** | `pnpm --filter web exec tsc --noEmit` | TypeScriptの型エラーチェック | 🔴 必須 |
+| **Build** | `pnpm build` | Next.jsのビルドが成功するか確認 | 🔴 必須 |
 
 ### ローカルでCIと同じチェックを実行
 
 ```bash
-# Lint チェック
+# 1. Lint チェック（必須）
 pnpm lint
 
-# 型チェック
+# 2. 型チェック（必須）
 pnpm --filter web exec tsc --noEmit
 
-# ビルドチェック（オプション）
+# 3. Husky/lint-stagedチェック（必須）
+# ステージングされたファイルに対してlint-stagedをテスト実行
+pnpm lint-staged --diff="HEAD"
+
+# 4. ビルドチェック（大きな変更の場合に推奨）
 DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy pnpm build
+
+# 自動修正
+pnpm lint:fix
 ```
 
-**注意**: PRを作成する前に、これらのチェックをローカルで通過させてください。
+**⚠️ 重要**:
+
+- PRを作成する前に、これらのチェックをローカルで通過させてください
+- Lintチェック、型チェック、Husky/lint-stagedチェックはすべて必須です
+- エラーが解消されるまで作業を完了としないでください
+- これらのチェックに失敗するとCIが失敗します
 
 ### 自動デプロイ（今後の予定）
 
