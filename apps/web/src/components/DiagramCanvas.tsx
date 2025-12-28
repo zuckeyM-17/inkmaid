@@ -146,6 +146,39 @@ export default function DiagramCanvas({
   }, [initialStrokes]);
 
   /**
+   * Mermaidコードから現在の方向を取得
+   */
+  const getCurrentDirection = useCallback((): "TD" | "LR" => {
+    const match = mermaidCode.match(/^flowchart\s+(TD|LR|RL|BT)/i);
+    if (match?.[1]) {
+      const dir = match[1].toUpperCase();
+      // TDとBTは縦方向、LRとRLは横方向として扱う
+      return dir === "TD" || dir === "BT" ? "TD" : "LR";
+    }
+    return "TD"; // デフォルトは縦方向
+  }, [mermaidCode]);
+
+  /**
+   * フローチャートの方向を変更
+   */
+  const changeDirection = useCallback(
+    (newDirection: "TD" | "LR") => {
+      const currentDir = getCurrentDirection();
+      if (currentDir === newDirection) return;
+
+      // flowchart TD または flowchart LR を置換
+      const updatedCode = mermaidCode.replace(
+        /^flowchart\s+(TD|LR|RL|BT)/i,
+        `flowchart ${newDirection}`,
+      );
+
+      setMermaidCode(updatedCode);
+      setHasUnsavedChanges(true);
+    },
+    [mermaidCode, getCurrentDirection],
+  );
+
+  /**
    * Mermaidレンダリング成功時のハンドラ（ノード位置情報を保存）
    */
   const handleRenderSuccess = useCallback((positions: NodePosition[]) => {
@@ -355,6 +388,37 @@ export default function DiagramCanvas({
 
         {/* ツールバー（左上） */}
         <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+          {/* 方向切り替えボタン（フローチャートの場合のみ表示） */}
+          {mermaidCode.trim().toLowerCase().startsWith("flowchart") && (
+            <div className="shrink-0 flex items-center gap-1 bg-white/90 backdrop-blur border border-gray-200 rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => changeDirection("TD")}
+                className={`px-3 py-1.5 text-xs font-medium transition-all flex items-center gap-1.5 ${
+                  getCurrentDirection() === "TD"
+                    ? "bg-violet-100 text-violet-700"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+                title="縦方向（上から下）"
+              >
+                <span>↕️</span>縦
+              </button>
+              <div className="w-px h-4 bg-gray-200" />
+              <button
+                type="button"
+                onClick={() => changeDirection("LR")}
+                className={`px-3 py-1.5 text-xs font-medium transition-all flex items-center gap-1.5 ${
+                  getCurrentDirection() === "LR"
+                    ? "bg-violet-100 text-violet-700"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+                title="横方向（左から右）"
+              >
+                <span>↔️</span>横
+              </button>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={() => setShowHintInput(!showHintInput)}
