@@ -118,6 +118,19 @@ export default function ProjectDetailPage() {
     },
   });
 
+  // Stage 1完了時のコールバック（中間結果を反映）
+  const handleStage1Complete = useCallback(
+    (result: { mermaidCode: string; reason: string }) => {
+      // Stage 1の結果を中間結果として反映
+      setEditingMermaidCode(result.mermaidCode);
+      setCanvasKey((prev) => prev + 1);
+      setLastAiResult(
+        `📊 全体構造を抽出しました（中間結果）: ${result.reason}`,
+      );
+    },
+    [],
+  );
+
   // ストローク解釈完了時のコールバック
   const handleStreamComplete = useCallback(
     (result: {
@@ -129,7 +142,9 @@ export default function ProjectDetailPage() {
         setEditingMermaidCode(result.mermaidCode);
         setEditingStrokes([]); // 変換後はストロークをクリア
         setCanvasKey((prev) => prev + 1);
-        setLastAiResult(result.reason || "変換が完了しました");
+        setLastAiResult(
+          `✅ 詳細を追加しました（最終結果）: ${result.reason || "変換が完了しました"}`,
+        );
 
         // DBにも保存
         if (projectId) {
@@ -280,9 +295,16 @@ export default function ProjectDetailPage() {
           canvasSize: { width: canvasSize.width, height: canvasSize.height },
         },
         handleStreamComplete,
+        handleStage1Complete,
       );
     },
-    [aiStream, projectData?.diagramType, handleStreamComplete, canvasSize],
+    [
+      aiStream,
+      projectData?.diagramType,
+      handleStreamComplete,
+      handleStage1Complete,
+      canvasSize,
+    ],
   );
 
   /**

@@ -537,6 +537,10 @@ export function useMultiStageAIStream() {
         reason: string | null;
         thinking: string;
       }) => void,
+      onStage1Complete?: (result: {
+        mermaidCode: string;
+        reason: string;
+      }) => void,
     ) => {
       // 既存のリクエストをキャンセル
       if (abortControllerRef.current) {
@@ -629,6 +633,14 @@ export function useMultiStageAIStream() {
             processedStrokeIndices: stage1Result.processedStrokeIndices,
           },
         }));
+
+        // Stage 1完了時に中間結果を通知
+        if (onStage1Complete) {
+          onStage1Complete({
+            mermaidCode: stage1Result.mermaidCode,
+            reason: stage1Result.reason,
+          });
+        }
 
         // 残りのストロークを取得
         const remainingStrokes = getRemainingStrokes(
