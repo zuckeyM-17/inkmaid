@@ -121,12 +121,19 @@ export default function ProjectDetailPage() {
   // Stage 1完了時のコールバック（中間結果を反映）
   const handleStage1Complete = useCallback(
     (result: { mermaidCode: string; reason: string }) => {
-      // Stage 1の結果を中間結果として反映
-      setEditingMermaidCode(result.mermaidCode);
-      setCanvasKey((prev) => prev + 1);
-      setLastAiResult(
-        `📊 全体構造を抽出しました（中間結果）: ${result.reason}`,
-      );
+      try {
+        // Stage 1の結果を中間結果として反映
+        setEditingMermaidCode(result.mermaidCode);
+        setCanvasKey((prev) => prev + 1);
+        setLastAiResult(
+          `📊 全体構造を抽出しました（中間結果）: ${result.reason}`,
+        );
+      } catch (error) {
+        console.error("handleStage1Complete でエラーが発生:", error);
+        setLastAiResult(
+          `エラーが発生しました: ${error instanceof Error ? error.message : "不明なエラー"}`,
+        );
+      }
     },
     [],
   );
@@ -138,27 +145,34 @@ export default function ProjectDetailPage() {
       reason: string | null;
       thinking: string;
     }) => {
-      if (result.mermaidCode) {
-        setEditingMermaidCode(result.mermaidCode);
-        setEditingStrokes([]); // 変換後はストロークをクリア
-        setCanvasKey((prev) => prev + 1);
-        setLastAiResult(
-          `✅ 詳細を追加しました（最終結果）: ${result.reason || "変換が完了しました"}`,
-        );
+      try {
+        if (result.mermaidCode) {
+          setEditingMermaidCode(result.mermaidCode);
+          setEditingStrokes([]); // 変換後はストロークをクリア
+          setCanvasKey((prev) => prev + 1);
+          setLastAiResult(
+            `✅ 詳細を追加しました（最終結果）: ${result.reason || "変換が完了しました"}`,
+          );
 
-        // DBにも保存
-        if (projectId) {
-          saveDiagramWithStrokes.mutate({
-            projectId,
-            mermaidCode: result.mermaidCode,
-            strokes: [],
-            updateType: "handwriting",
-            reason: result.reason || "手書きストロークからAIで変換",
-          });
+          // DBにも保存
+          if (projectId) {
+            saveDiagramWithStrokes.mutate({
+              projectId,
+              mermaidCode: result.mermaidCode,
+              strokes: [],
+              updateType: "handwriting",
+              reason: result.reason || "手書きストロークからAIで変換",
+            });
+          }
+        } else {
+          setLastAiResult(
+            "ストロークを解釈できませんでした。もう一度お試しください。",
+          );
         }
-      } else {
+      } catch (error) {
+        console.error("handleStreamComplete でエラーが発生:", error);
         setLastAiResult(
-          "ストロークを解釈できませんでした。もう一度お試しください。",
+          `エラーが発生しました: ${error instanceof Error ? error.message : "不明なエラー"}`,
         );
       }
     },

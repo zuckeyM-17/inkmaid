@@ -584,20 +584,20 @@ export function useMultiStageAIStream() {
             },
           );
 
+          // 処理完了状態に更新（onComplete呼び出しの前に確実に状態を更新）
+          setState((prev) => ({
+            ...prev,
+            isProcessing: false,
+            multiStageState: "completed",
+          }));
+
+          // onCompleteコールバックを実行
           onComplete({
             mermaidCode: result.mermaidCode,
             reason: result.reason,
             thinking: finalThinking,
           });
 
-          // 次のイベントループで状態を更新（onComplete内の非同期処理を考慮）
-          setTimeout(() => {
-            setState((prev) => ({
-              ...prev,
-              isProcessing: false,
-              multiStageState: "completed",
-            }));
-          }, 0);
           return;
         }
 
@@ -650,20 +650,20 @@ export function useMultiStageAIStream() {
 
         if (remainingStrokes.length === 0) {
           // Stage 1の結果で完了
+          // 処理完了状態に更新（onComplete呼び出しの前に確実に状態を更新）
+          setState((prev) => ({
+            ...prev,
+            isProcessing: false,
+            multiStageState: "completed",
+          }));
+
+          // onCompleteコールバックを実行
           onComplete({
             mermaidCode: stage1Result.mermaidCode,
             reason: stage1Result.reason,
             thinking: stage1Result.thinking,
           });
 
-          // 次のイベントループで状態を更新（onComplete内の非同期処理を考慮）
-          setTimeout(() => {
-            setState((prev) => ({
-              ...prev,
-              isProcessing: false,
-              multiStageState: "completed",
-            }));
-          }, 0);
           return;
         }
 
@@ -702,20 +702,19 @@ export function useMultiStageAIStream() {
             },
           );
 
+          // 処理完了状態に更新（onComplete呼び出しの前に確実に状態を更新）
+          setState((prev) => ({
+            ...prev,
+            isProcessing: false,
+            multiStageState: "completed",
+          }));
+
+          // onCompleteコールバックを実行
           onComplete({
             mermaidCode: stage2Result.mermaidCode,
             reason: stage2Result.reason,
             thinking: `${stage1Result.thinking}\n\n${stage2Result.thinking}`,
           });
-
-          // 次のイベントループで状態を更新（onComplete内の非同期処理を考慮）
-          setTimeout(() => {
-            setState((prev) => ({
-              ...prev,
-              isProcessing: false,
-              multiStageState: "completed",
-            }));
-          }, 0);
         } else {
           // Stage 2A: 直接追加
           setState((prev) => ({
@@ -742,26 +741,32 @@ export function useMultiStageAIStream() {
             },
           );
 
+          // 処理完了状態に更新（onComplete呼び出しの前に確実に状態を更新）
+          setState((prev) => ({
+            ...prev,
+            isProcessing: false,
+            multiStageState: "completed",
+          }));
+
+          // onCompleteコールバックを実行
           onComplete({
             mermaidCode: stage2Result.mermaidCode,
             reason: stage2Result.reason,
             thinking: `${stage1Result.thinking}\n\n${stage2Result.thinking}`,
           });
-
-          // 次のイベントループで状態を更新（onComplete内の非同期処理を考慮）
-          setTimeout(() => {
-            setState((prev) => ({
-              ...prev,
-              isProcessing: false,
-              multiStageState: "completed",
-            }));
-          }, 0);
         }
       } catch (error) {
+        // AbortError（キャンセル）の場合も状態を適切に更新
         if ((error as Error).name === "AbortError") {
+          setState((prev) => ({
+            ...prev,
+            isProcessing: false,
+            multiStageState: "idle",
+          }));
           return;
         }
 
+        // その他のエラーの場合
         const errorMessage =
           error instanceof Error ? error.message : "不明なエラーが発生しました";
         setState((prev) => ({

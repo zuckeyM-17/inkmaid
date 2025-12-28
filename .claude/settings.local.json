@@ -3,7 +3,8 @@
     "allow": [
       "Bash(pnpm lint:*)",
       "Bash(pnpm lint:fix:*)",
-      "Bash(pnpm --filter web exec tsc:*)"
+      "Bash(pnpm --filter web exec tsc:*)",
+      "Bash(pnpm --filter web lint:check:*)"
     ]
   }
 }
