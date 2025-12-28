@@ -71,7 +71,17 @@ const DIAGRAM_SYNTAX_RULES: Record<DiagramType, string> = {
 - ノードの定義: \`A[テキスト]\`, \`B{条件}\`, \`C((円形))\`, \`D([楕円])\`
 - 接続: \`A --> B\`, \`A -->|ラベル| B\`, \`A --- B\`
 - スタイル: \`style A fill:#f9f,stroke:#333\`
-- サブグラフ: \`subgraph タイトル\` ... \`end\``,
+- サブグラフ（グループ化）:
+  \`\`\`
+  subgraph タイトル
+    A[ノード1]
+    B[ノード2]
+    A --> B
+  end
+  \`\`\`
+  - 囲み線で複数のノードを囲んだ場合、それらをsubgraphとしてグループ化する
+  - subgraph内のノードと外部ノードの接続も維持する
+  - タイトルは囲み線内のノードの内容から推測するか、空白にする`,
 
   sequence: `## シーケンス図 (sequenceDiagram) の構文
 - \`sequenceDiagram\` で始まる
@@ -115,7 +125,11 @@ const DIAGRAM_STROKE_RULES: Record<DiagramType, string> = {
 - 円形に近い形 → 開始/終了ノードの追加
 - 線や矢印（既存ノード間を結ぶもの） → ノード間の接続を追加
 - **X印（バツ）がノード上に描かれた場合 → そのノードと関連する接続を削除**
-- 囲み → サブグラフ`,
+- **閉じた図形（囲み線）が複数のノードを囲んでいる場合 → それらのノードをsubgraphとしてグループ化**
+  - 囲み線は開始点と終了点が近い（50px以内）閉じたストローク
+  - 囲み線内に含まれるノードを特定し、subgraphブロック内に移動する
+  - 囲み線内のノードと外部ノードの接続は維持する
+  - subgraphのタイトルは囲み線内のノードの内容から推測する`,
 
   sequence: `## ストロークの解釈ルール（シーケンス図）
 - 縦の直線 → 新しい参加者（participant）の追加
@@ -426,6 +440,230 @@ export async function POST(request: Request) {
     };
   };
 
+  // 2本のストロークがX印（バツ）を形成しているか判定
+  const detectXMark = (): {
+    isXMark: boolean;
+    centerX: number;
+    centerY: number;
+    targetNodeId: string | null;
+  } | null => {
+    if (processedStrokes.length < 2) return null;
+
+    // 最後の2本のストロークをチェック
+    const stroke1 = processedStrokes[processedStrokes.length - 2];
+    const stroke2 = processedStrokes[processedStrokes.length - 1];
+
+    if (!stroke1 || !stroke2) return null;
+
+    const p1 = stroke1.points;
+    const p2 = stroke2.points;
+
+    const bounds1 = getStrokeBounds(p1);
+    const bounds2 = getStrokeBounds(p2);
+
+    // 両ストロークが近い位置にあるか（中心が近い）
+    const centerDist = Math.sqrt(
+      (bounds1.centerX - bounds2.centerX) ** 2 +
+        (bounds1.centerY - bounds2.centerY) ** 2,
+    );
+
+    // 両ストロークのサイズが似ているか
+    const size1 = Math.max(
+      bounds1.maxX - bounds1.minX,
+      bounds1.maxY - bounds1.minY,
+    );
+    const size2 = Math.max(
+      bounds2.maxX - bounds2.minX,
+      bounds2.maxY - bounds2.minY,
+    );
+    const sizeDiff = Math.abs(size1 - size2) / Math.max(size1, size2);
+
+    // X印の条件: 中心が近く（80px以内）、サイズが似ている（差が50%以内）
+    if (centerDist < 80 && sizeDiff < 0.5) {
+      // 線が交差する形状かチェック（対角線的な動き）
+      const start1X = p1[0];
+      const start1Y = p1[1];
+      const end1X = p1[p1.length - 2];
+      const end1Y = p1[p1.length - 1];
+      const start2X = p2[0];
+      const start2Y = p2[1];
+      const end2X = p2[p2.length - 2];
+      const end2Y = p2[p2.length - 1];
+
+      if (
+        start1X === undefined ||
+        start1Y === undefined ||
+        end1X === undefined ||
+        end1Y === undefined ||
+        start2X === undefined ||
+        start2Y === undefined ||
+        end2X === undefined ||
+        end2Y === undefined
+      ) {
+        return null;
+      }
+
+      const start1 = { x: start1X, y: start1Y };
+      const end1 = { x: end1X, y: end1Y };
+      const start2 = { x: start2X, y: start2Y };
+      const end2 = { x: end2X, y: end2Y };
+
+      // 両方のストロークが斜め線か（開始点と終了点のX,Yが両方変化）
+      const isDiagonal1 =
+        Math.abs(end1.x - start1.x) > 20 && Math.abs(end1.y - start1.y) > 20;
+      const isDiagonal2 =
+        Math.abs(end2.x - start2.x) > 20 && Math.abs(end2.y - start2.y) > 20;
+
+      if (isDiagonal1 && isDiagonal2) {
+        // X印の中心座標
+        const xCenter = (bounds1.centerX + bounds2.centerX) / 2;
+        const yCenter = (bounds1.centerY + bounds2.centerY) / 2;
+
+        // どのノードの上にあるか判定
+        let targetNodeId: string | null = null;
+        if (nodePositions && nodePositions.length > 0) {
+          for (const node of nodePositions) {
+            // X印の中心がノードの範囲内にあるか
+            if (
+              xCenter >= node.x - 20 &&
+              xCenter <= node.x + node.width + 20 &&
+              yCenter >= node.y - 20 &&
+              yCenter <= node.y + node.height + 20
+            ) {
+              targetNodeId = node.id;
+              break;
+            }
+          }
+        }
+
+        return {
+          isXMark: true,
+          centerX: xCenter,
+          centerY: yCenter,
+          targetNodeId,
+        };
+      }
+    }
+
+    return null;
+  };
+
+  // 囲み線（閉じた図形）を検出し、内部のノードを特定
+  const detectEnclosure = (): {
+    isEnclosure: boolean;
+    strokeIndex: number;
+    bounds: {
+      minX: number;
+      maxX: number;
+      minY: number;
+      maxY: number;
+      centerX: number;
+      centerY: number;
+    };
+    enclosedNodeIds: string[];
+  } | null => {
+    // 各ストロークをチェック
+    for (let i = 0; i < processedStrokes.length; i++) {
+      const stroke = processedStrokes[i];
+      if (!stroke) continue;
+
+      const points = stroke.points;
+      if (points.length < 6) continue; // 最低3点必要
+
+      const startX = points[0];
+      const startY = points[1];
+      const endX = points[points.length - 2];
+      const endY = points[points.length - 1];
+
+      if (
+        startX === undefined ||
+        startY === undefined ||
+        endX === undefined ||
+        endY === undefined
+      ) {
+        continue;
+      }
+
+      // 閉じた図形かどうか（開始点と終了点が近い）
+      const distanceToClose = Math.sqrt(
+        (startX - endX) ** 2 + (startY - endY) ** 2,
+      );
+
+      // 閉じた図形の条件: 開始点と終了点が50px以内
+      if (distanceToClose < 50) {
+        const bounds = getStrokeBounds(points);
+        const width = bounds.maxX - bounds.minX;
+        const height = bounds.maxY - bounds.minY;
+
+        // 囲み線として有効な最小サイズ（100x100px以上）
+        if (width < 100 || height < 100) {
+          continue;
+        }
+
+        // 点が多角形内にあるか判定する関数（Ray Casting Algorithm）
+        const isPointInPolygon = (
+          px: number,
+          py: number,
+          polygonPoints: number[],
+        ): boolean => {
+          let inside = false;
+          for (let j = 0; j < polygonPoints.length - 2; j += 2) {
+            const x1 = polygonPoints[j];
+            const y1 = polygonPoints[j + 1];
+            const x2 = polygonPoints[j + 2];
+            const y2 = polygonPoints[j + 3];
+
+            if (
+              x1 === undefined ||
+              y1 === undefined ||
+              x2 === undefined ||
+              y2 === undefined
+            ) {
+              continue;
+            }
+
+            const intersect =
+              y1 > py !== y2 > py &&
+              px < ((x2 - x1) * (py - y1)) / (y2 - y1) + x1;
+            if (intersect) {
+              inside = !inside;
+            }
+          }
+          return inside;
+        };
+
+        // 囲み線内に含まれるノードを特定
+        const enclosedNodeIds: string[] = [];
+        if (nodePositions && nodePositions.length > 0) {
+          for (const node of nodePositions) {
+            // ノードの中心点が囲み線内にあるかチェック
+            if (isPointInPolygon(node.centerX, node.centerY, points)) {
+              enclosedNodeIds.push(node.id);
+            }
+          }
+        }
+
+        // 囲み線として有効（内部にノードが1つ以上ある）
+        if (enclosedNodeIds.length > 0) {
+          return {
+            isEnclosure: true,
+            strokeIndex: i,
+            bounds,
+            enclosedNodeIds,
+          };
+        }
+      }
+    }
+
+    return null;
+  };
+
+  // X印を検出
+  const xMarkDetection = detectXMark();
+
+  // 囲み線を検出
+  const enclosureDetection = detectEnclosure();
+
   // ストロークデータをテキストに変換
   const strokeDescriptions = processedStrokes
     .map((stroke, index) => {
@@ -492,6 +730,31 @@ ${nodePositionDescriptions}
 ## 手書きストロークデータ（${processedStrokes.length}個のストローク${strokes.length !== processedStrokes.length ? `、簡略化済み（元: ${strokes.length}個）` : ""}${stage === 2 && processedStrokeIndices ? `、Stage 1で処理済み: ${processedStrokeIndices.length}個` : ""}）:
 ${strokeDescriptions}
 
+${
+  xMarkDetection
+    ? `## ⚠️ X印（バツ）を検出しました！
+- X印の中心座標: (${Math.round(xMarkDetection.centerX)}, ${Math.round(xMarkDetection.centerY)})
+- 対象ノード: ${xMarkDetection.targetNodeId ? `「${xMarkDetection.targetNodeId}」を削除してください` : "特定できませんでした（位置から判断してください）"}
+
+**重要**: X印が描かれたノードとその接続を削除してください。
+`
+    : ""
+}
+${
+  enclosureDetection
+    ? `## 🔲 囲み線（サブグラフ）を検出しました！
+- 囲み線の範囲: (${Math.round(enclosureDetection.bounds.minX)}, ${Math.round(enclosureDetection.bounds.minY)}) ～ (${Math.round(enclosureDetection.bounds.maxX)}, ${Math.round(enclosureDetection.bounds.maxY)})
+- 囲み線の中心: (${Math.round(enclosureDetection.bounds.centerX)}, ${Math.round(enclosureDetection.bounds.centerY)})
+- 囲み線内に含まれるノード: ${enclosureDetection.enclosedNodeIds.length > 0 ? enclosureDetection.enclosedNodeIds.map((id) => `「${id}」`).join(", ") : "なし"}
+
+**重要**: 囲み線内に含まれるノードをsubgraphとしてグループ化してください。
+- subgraph構文: \`subgraph タイトル\` ... \`end\`
+- 囲み線内のノードをsubgraphブロック内に移動してください
+- 囲み線のタイトルは、囲み線内のノードの内容から推測するか、空白にしてください
+- 既存の接続は維持してください（subgraph内のノードと外部ノードの接続も保持）
+`
+    : ""
+}
 ${hint ? `## ユーザーからの補足: ${hint}` : ""}
 
 ${
@@ -508,7 +771,8 @@ ${
 - ストロークの座標と既存ノードの位置を比較して、どのノードに対する操作かを判断してください
 - ストロークがノードの近くにある場合、そのノードとの関連を考慮してください
 - ノード間を結ぶような線は、接続（矢印）を意味する可能性が高いです
-- **X印（バツ）がノード上に描かれた場合は、そのノードを削除してください**`
+- **X印（バツ）がノード上に描かれた場合は、そのノードを削除してください**
+- **閉じた図形（囲み線）がノードを囲んでいる場合は、そのノードをsubgraphとしてグループ化してください**`
 }
 
 これらのストロークを解釈して、Mermaidダイアグラムを更新してください。`;
