@@ -4,7 +4,10 @@
       "Bash(pnpm lint:*)",
       "Bash(pnpm lint:fix:*)",
       "Bash(pnpm --filter web exec tsc:*)",
-      "Bash(pnpm --filter web lint:check:*)"
+      "Bash(pnpm --filter web lint:check:*)",
+      "WebSearch",
+      "WebFetch(domain:langfuse.com)",
+      "Bash(docker compose:*)"
     ]
   }
 }
