@@ -550,7 +550,13 @@ export default function ProjectDetailPage() {
       {/* バージョン履歴パネル（オーバーレイ） */}
       {showVersionPanel && (
         <div className="fixed inset-0 z-40 pointer-events-none">
-          <div className="absolute right-0 top-12 h-[calc(100%-3rem)] pointer-events-auto shadow-2xl">
+          <div
+            className={`absolute top-12 h-[calc(100%-3rem)] pointer-events-auto shadow-2xl ${
+              showThinkingPanel && showVersionPanel
+                ? "right-[320px]"
+                : "right-0"
+            }`}
+          >
             <VersionHistoryPanel
               projectId={projectId}
               isOpen={showVersionPanel}
@@ -576,6 +582,7 @@ export default function ProjectDetailPage() {
               onClose={() => setShowThinkingPanel(false)}
               progress={aiStream.progress}
               multiStageState={aiStream.multiStageState}
+              isBothOpen={showThinkingPanel && showVersionPanel}
             />
           </div>
         </div>
