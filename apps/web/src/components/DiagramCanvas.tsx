@@ -213,6 +213,7 @@ export default function DiagramCanvas({
 
   /**
    * MermaidのSVGとストロークを合成した画像を生成
+   * ズーム・パン操作を考慮して、ビューポート全体をキャプチャ
    */
   const generateCanvasImage = useCallback(async (): Promise<string | null> => {
     try {
@@ -220,16 +221,21 @@ export default function DiagramCanvas({
       const svgElement = mermaidContainerRef.current?.querySelector("svg");
       if (!svgElement) return null;
 
-      // Canvasを作成
+      // コンテナの実際のサイズを取得
+      const containerRect =
+        mermaidContainerRef.current?.getBoundingClientRect();
+      if (!containerRect) return null;
+
+      // Canvasを作成（ビューポート全体をカバー）
       const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = actualSize.width;
+      canvas.height = actualSize.height;
       const ctx = canvas.getContext("2d");
       if (!ctx) return null;
 
       // 白背景を描画
       ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, width, height);
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // SVGをBase64 Data URLに変換（Tainted Canvas問題を回避）
       const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
@@ -239,6 +245,43 @@ export default function DiagramCanvas({
         svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
       }
 
+      // SVGの元のサイズを取得（viewBoxまたはwidth/height属性から）
+      const svgViewBox = svgClone.getAttribute("viewBox");
+      let svgWidth = 0;
+      let svgHeight = 0;
+
+      if (svgViewBox) {
+        const viewBoxValues = svgViewBox.split(/\s+/).map(Number);
+        if (viewBoxValues.length >= 4) {
+          svgWidth = viewBoxValues[2] ?? 0;
+          svgHeight = viewBoxValues[3] ?? 0;
+        }
+      }
+
+      if (svgWidth === 0 || svgHeight === 0) {
+        // viewBoxがない場合はwidth/height属性から取得
+        const widthAttr = svgClone.getAttribute("width");
+        const heightAttr = svgClone.getAttribute("height");
+        if (widthAttr && heightAttr) {
+          svgWidth = Number.parseFloat(widthAttr) || 0;
+          svgHeight = Number.parseFloat(heightAttr) || 0;
+        } else {
+          // それでも取得できない場合はgetBoundingClientRectから取得
+          const svgRect = svgElement.getBoundingClientRect();
+          svgWidth = svgRect.width / viewTransform.scale;
+          svgHeight = svgRect.height / viewTransform.scale;
+        }
+      }
+
+      // SVGの実際の描画サイズ（ズームを考慮）
+      const scaledSvgWidth = svgWidth * viewTransform.scale;
+      const scaledSvgHeight = svgHeight * viewTransform.scale;
+
+      // SVGの描画位置を計算（パンを考慮）
+      // viewTransformはコンテナの左上を基準としたオフセット
+      const svgDrawX = viewTransform.x;
+      const svgDrawY = viewTransform.y;
+
       const svgData = new XMLSerializer().serializeToString(svgClone);
       const svgBase64 = btoa(unescape(encodeURIComponent(svgData)));
       const svgDataUrl = `data:image/svg+xml;base64,${svgBase64}`;
@@ -246,17 +289,14 @@ export default function DiagramCanvas({
       await new Promise<void>((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
-          // SVGをキャンバスの中央に配置
-          const svgRect = svgElement.getBoundingClientRect();
-          const containerRect =
-            mermaidContainerRef.current?.getBoundingClientRect();
-          if (containerRect) {
-            const offsetX = svgRect.left - containerRect.left;
-            const offsetY = svgRect.top - containerRect.top;
-            ctx.drawImage(img, offsetX, offsetY, svgRect.width, svgRect.height);
-          } else {
-            ctx.drawImage(img, 0, 0);
-          }
+          // SVGを正しい位置とサイズで描画（ズーム・パンを考慮）
+          ctx.drawImage(
+            img,
+            svgDrawX,
+            svgDrawY,
+            scaledSvgWidth,
+            scaledSvgHeight,
+          );
           resolve();
         };
         img.onerror = (e) => {
@@ -266,14 +306,17 @@ export default function DiagramCanvas({
         img.src = svgDataUrl;
       });
 
-      // ストロークを直接Canvasに描画
+      // ストロークを直接Canvasに描画（viewTransformを考慮）
+      // ストロークの座標はビューポート座標系（元の座標系）で保存されているため、
+      // viewTransformを適用して画面座標に変換する必要がある
       if (strokes.length > 0) {
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
 
         for (const stroke of strokes) {
           ctx.strokeStyle = stroke.color;
-          ctx.lineWidth = stroke.strokeWidth;
+          // ストロークの太さもscaleを考慮
+          ctx.lineWidth = stroke.strokeWidth * viewTransform.scale;
           ctx.beginPath();
 
           const points = stroke.points;
@@ -281,12 +324,19 @@ export default function DiagramCanvas({
             const firstX = points[0];
             const firstY = points[1];
             if (firstX !== undefined && firstY !== undefined) {
-              ctx.moveTo(firstX, firstY);
+              // ビューポート座標を画面座標に変換
+              const screenX = firstX * viewTransform.scale + viewTransform.x;
+              const screenY = firstY * viewTransform.scale + viewTransform.y;
+              ctx.moveTo(screenX, screenY);
+
               for (let i = 2; i < points.length; i += 2) {
                 const x = points[i];
                 const y = points[i + 1];
                 if (x !== undefined && y !== undefined) {
-                  ctx.lineTo(x, y);
+                  // ビューポート座標を画面座標に変換
+                  const screenX2 = x * viewTransform.scale + viewTransform.x;
+                  const screenY2 = y * viewTransform.scale + viewTransform.y;
+                  ctx.lineTo(screenX2, screenY2);
                 }
               }
               ctx.stroke();
@@ -300,7 +350,7 @@ export default function DiagramCanvas({
       console.error("キャンバス画像の生成に失敗:", error);
       return null;
     }
-  }, [width, height, strokes]);
+  }, [actualSize.width, actualSize.height, strokes, viewTransform]);
 
   /**
    * AIで変換ボタンのハンドラ（ノード位置情報付き、画像付き）
