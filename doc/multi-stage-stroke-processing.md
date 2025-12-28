@@ -479,6 +479,73 @@ ${DIAGRAM_SYNTAX_RULES[diagramType]}
 )}
 ```
 
+### 各段階でのMermaidコード反映
+
+**現在の実装状況:**
+
+現在の実装では、**各段階でMermaidコードはリアルタイムに反映されません**。最終的な結果（Stage 2完了後）のみがMermaidプレビューに反映されます。
+
+**理由:**
+- Stage 1の結果は`stage1Result`に保存されるが、UI更新のコールバックが呼ばれない
+- `onComplete`コールバックは最終結果（Stage 2完了後）のみを通知する
+
+**改善案: 段階的なMermaidコード反映**
+
+各段階でMermaidコードをリアルタイムに反映するには、以下の実装が必要です：
+
+1. **`useMultiStageAIStream`の拡張**
+   - Stage 1完了時に中間結果を通知するコールバックを追加
+   - Stage 2の各領域処理完了時にも中間結果を通知
+
+```typescript
+// useMultiStageAIStream.ts の拡張例
+const interpretStrokes = async (
+  params: InterpretParams,
+  onComplete: (result: { mermaidCode: string; reason: string; thinking: string }) => void,
+  onStage1Complete?: (result: { mermaidCode: string; reason: string }) => void, // 新規追加
+) => {
+  // ... 既存の処理 ...
+
+  // Stage 1完了時に中間結果を通知
+  if (onStage1Complete) {
+    onStage1Complete({
+      mermaidCode: stage1Result.mermaidCode,
+      reason: stage1Result.reason,
+    });
+  }
+
+  // ... Stage 2の処理 ...
+};
+```
+
+2. **親コンポーネントでの実装**
+
+```typescript
+// page.tsx での使用例
+const handleStage1Complete = useCallback((result: { mermaidCode: string; reason: string }) => {
+  // Stage 1の結果を一時的に表示（オプション）
+  setEditingMermaidCode(result.mermaidCode);
+  // 視覚的に「中間結果」であることを示すUIを表示
+}, []);
+
+aiStream.interpretStrokes(
+  params,
+  handleStreamComplete,
+  handleStage1Complete, // 新規追加
+);
+```
+
+**UI表示の改善:**
+
+- Stage 1完了時: 「全体構造を抽出しました（中間結果）」と表示し、Mermaidコードを更新
+- Stage 2完了時: 「詳細を追加しました（最終結果）」と表示し、最終的なMermaidコードを更新
+- 視覚的な区別: 中間結果は半透明やボーダーで表示し、最終結果と区別
+
+**注意事項:**
+
+- 中間結果をDBに保存するかどうかは設計次第（現在は最終結果のみ保存）
+- ユーザーが中間結果を編集した場合の扱いを考慮する必要がある
+
 ## パラメータと設定
 
 ### 閾値設定

@@ -197,7 +197,18 @@ export type NewProject = typeof projects.$inferInsert;
    - 型エラーがある場合は修正する
    - 型エラーが解消されるまで作業を完了としない
 
-3. **ビルドチェック（オプション）**
+3. **Husky/lint-stagedチェック（必須）**
+   ```bash
+   # ステージングされたファイルに対してlint-stagedをテスト実行
+   pnpm lint-staged --diff="HEAD"
+   ```
+   - コミット時に実行されるlint-stagedが正しく動作することを確認
+   - エラーがある場合は修正する
+   - `package.json`の`lint-staged`設定を変更した場合は特に重要
+   - 注意: Markdownファイル（`*.md`）はlint-stagedから除外されているため、エラーにならない
+   - 注意: 実際のコミット前には、huskyのpre-commitフックが自動的に`pnpm lint-staged`を実行する
+
+4. **ビルドチェック（オプション）**
    ```bash
    DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy pnpm build
    ```
@@ -211,6 +222,7 @@ export type NewProject = typeof projects.$inferInsert;
 |---------|---------|------|--------|
 | Lint | `pnpm lint` | Biomeによるコードスタイル・構文チェック | 🔴 必須 |
 | Type Check | `pnpm --filter web exec tsc --noEmit` | TypeScriptの型エラーチェック | 🔴 必須 |
+| Husky/lint-staged | `pnpm lint-staged --diff="HEAD"` | コミット時に実行されるlint-stagedが正しく動作するか確認 | 🔴 必須 |
 | Build | `DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy pnpm build` | Next.jsのビルドが成功するか確認 | 🟢 オプション |
 
 ### 自動修正コマンド
@@ -221,9 +233,10 @@ pnpm lint:fix
 ```
 
 **重要**:
-- AIは作業完了時に必ずLintチェックと型チェックを実行し、エラーがないことを確認すること
+- AIは作業完了時に必ずLintチェック、型チェック、Husky/lint-stagedチェックを実行し、エラーがないことを確認すること
 - エラーがある場合は、ユーザーに報告する前に修正すること
-- Lintチェックと型チェックに通過するまで作業を完了としないこと
+- Lintチェック、型チェック、Husky/lint-stagedチェックに通過するまで作業を完了としないこと
 - ビルドチェックは大きな変更の場合に実行することを推奨
-- **package.jsonを変更した場合**: lint-staged設定が正しいか確認すること（`biome check --write`を使用）
+- **package.jsonを変更した場合**: lint-staged設定が正しいか確認すること（`biome check --write`を使用、Markdownファイルは除外）
+- **lint-staged設定**: Markdownファイル（`*.md`）はlint-stagedから除外されている（biomeがMarkdownをサポートしていないため）
 - これらのチェックに失敗するとCIが失敗します。PRを作成する前に必ず通過させてください。

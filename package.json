@@ -44,7 +44,7 @@
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": ["biome check --write"],
-    "*.{json,md}": ["biome check --write"]
+    "*.json": ["biome check --write"]
   },
   "packageManager": "pnpm@9.15.1",
   "engines": {
