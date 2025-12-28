@@ -237,7 +237,7 @@ export default function Home() {
                           handleArchiveProject(e, project.id, project.name)
                         }
                         disabled={isArchiving}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
+                        className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
                         title="アーカイブ"
                       >
                         {isArchiving ? (
@@ -336,7 +336,7 @@ export default function Home() {
                           type="button"
                           onClick={(e) => handleRestoreProject(e, project.id)}
                           disabled={isRestoring}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                          className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
                           title="復元"
                         >
                           {isRestoring ? (
