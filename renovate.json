@@ -63,7 +63,6 @@
     {
       "description": "メジャーアップデートは個別PR",
       "matchUpdateTypes": ["major"],
-      "separateMajorMinor": true,
       "labels": ["dependencies", "breaking-change"]
     },
     {
