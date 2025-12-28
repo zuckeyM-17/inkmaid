@@ -58,7 +58,17 @@ const DIAGRAM_SYNTAX_RULES: Record<DiagramType, string> = {
 - ノードの定義: \`A[テキスト]\`, \`B{条件}\`, \`C((円形))\`, \`D([楕円])\`
 - 接続: \`A --> B\`, \`A -->|ラベル| B\`, \`A --- B\`
 - スタイル: \`style A fill:#f9f,stroke:#333\`
-- サブグラフ: \`subgraph タイトル\` ... \`end\``,
+- サブグラフ（グループ化）:
+  \`\`\`
+  subgraph タイトル
+    A[ノード1]
+    B[ノード2]
+    A --> B
+  end
+  \`\`\`
+  - 囲み線で複数のノードを囲んだ場合、それらをsubgraphとしてグループ化する
+  - subgraph内のノードと外部ノードの接続も維持する
+  - タイトルは囲み線内のノードの内容から推測するか、空白にする`,
 
   sequence: `## シーケンス図 (sequenceDiagram) の構文
 - \`sequenceDiagram\` で始まる
@@ -102,7 +112,11 @@ const DIAGRAM_STROKE_RULES: Record<DiagramType, string> = {
 - 円形に近い形 → 開始/終了ノードの追加
 - 線や矢印（既存ノード間を結ぶもの） → ノード間の接続を追加
 - **X印（バツ）がノード上に描かれた場合 → そのノードと関連する接続を削除**
-- 囲み → サブグラフ`,
+- **閉じた図形（囲み線）が複数のノードを囲んでいる場合 → それらのノードをsubgraphとしてグループ化**
+  - 囲み線は開始点と終了点が近い（50px以内）閉じたストローク
+  - 囲み線内に含まれるノードを特定し、subgraphブロック内に移動する
+  - 囲み線内のノードと外部ノードの接続は維持する
+  - subgraphのタイトルは囲み線内のノードの内容から推測する`,
 
   sequence: `## ストロークの解釈ルール（シーケンス図）
 - 縦の直線 → 新しい参加者（participant）の追加
@@ -553,6 +567,119 @@ ${currentMermaidCode}
       // X印を検出
       const xMarkDetection = detectXMark();
 
+      // 囲み線（閉じた図形）を検出し、内部のノードを特定
+      const detectEnclosure = (): {
+        isEnclosure: boolean;
+        strokeIndex: number;
+        bounds: {
+          minX: number;
+          maxX: number;
+          minY: number;
+          maxY: number;
+          centerX: number;
+          centerY: number;
+        };
+        enclosedNodeIds: string[];
+      } | null => {
+        // 各ストロークをチェック
+        for (let i = 0; i < strokes.length; i++) {
+          const stroke = strokes[i];
+          if (!stroke) continue;
+
+          const points = stroke.points;
+          if (points.length < 6) continue; // 最低3点必要
+
+          const startX = points[0];
+          const startY = points[1];
+          const endX = points[points.length - 2];
+          const endY = points[points.length - 1];
+
+          if (
+            startX === undefined ||
+            startY === undefined ||
+            endX === undefined ||
+            endY === undefined
+          ) {
+            continue;
+          }
+
+          // 閉じた図形かどうか（開始点と終了点が近い）
+          const distanceToClose = Math.sqrt(
+            (startX - endX) ** 2 + (startY - endY) ** 2,
+          );
+
+          // 閉じた図形の条件: 開始点と終了点が50px以内
+          if (distanceToClose < 50) {
+            const bounds = getStrokeBounds(points);
+            const width = bounds.maxX - bounds.minX;
+            const height = bounds.maxY - bounds.minY;
+
+            // 囲み線として有効な最小サイズ（100x100px以上）
+            if (width < 100 || height < 100) {
+              continue;
+            }
+
+            // 点が多角形内にあるか判定する関数（Ray Casting Algorithm）
+            const isPointInPolygon = (
+              px: number,
+              py: number,
+              polygonPoints: number[],
+            ): boolean => {
+              let inside = false;
+              for (let j = 0; j < polygonPoints.length - 2; j += 2) {
+                const x1 = polygonPoints[j];
+                const y1 = polygonPoints[j + 1];
+                const x2 = polygonPoints[j + 2];
+                const y2 = polygonPoints[j + 3];
+
+                if (
+                  x1 === undefined ||
+                  y1 === undefined ||
+                  x2 === undefined ||
+                  y2 === undefined
+                ) {
+                  continue;
+                }
+
+                const intersect =
+                  y1 > py !== y2 > py &&
+                  px < ((x2 - x1) * (py - y1)) / (y2 - y1) + x1;
+                if (intersect) {
+                  inside = !inside;
+                }
+              }
+              return inside;
+            };
+
+            // 囲み線内に含まれるノードを特定
+            const enclosedNodeIds: string[] = [];
+            if (nodePositions && nodePositions.length > 0) {
+              for (const node of nodePositions) {
+                // ノードの中心点が囲み線内にあるかチェック
+                if (isPointInPolygon(node.centerX, node.centerY, points)) {
+                  enclosedNodeIds.push(node.id);
+                }
+              }
+            }
+
+            // 囲み線として有効（内部にノードが1つ以上ある）
+            if (enclosedNodeIds.length > 0) {
+              return {
+                isEnclosure: true,
+                strokeIndex: i,
+                bounds,
+                enclosedNodeIds,
+              };
+            }
+          }
+        }
+
+        return null;
+      };
+
+      // 囲み線を検出
+      const enclosureDetection = detectEnclosure();
+
       // ストロークデータを解析用のテキストに変換
       const strokeDescriptions = strokes
         .map((stroke, index) => {
@@ -627,6 +754,21 @@ ${
 `
     : ""
 }
+${
+  enclosureDetection
+    ? `## 🔲 囲み線（サブグラフ）を検出しました！
+- 囲み線の範囲: (${Math.round(enclosureDetection.bounds.minX)}, ${Math.round(enclosureDetection.bounds.minY)}) ～ (${Math.round(enclosureDetection.bounds.maxX)}, ${Math.round(enclosureDetection.bounds.maxY)})
+- 囲み線の中心: (${Math.round(enclosureDetection.bounds.centerX)}, ${Math.round(enclosureDetection.bounds.centerY)})
+- 囲み線内に含まれるノード: ${enclosureDetection.enclosedNodeIds.length > 0 ? enclosureDetection.enclosedNodeIds.map((id) => `「${id}」`).join(", ") : "なし"}
+
+**重要**: 囲み線内に含まれるノードをsubgraphとしてグループ化してください。
+- subgraph構文: \`subgraph タイトル\` ... \`end\`
+- 囲み線内のノードをsubgraphブロック内に移動してください
+- 囲み線のタイトルは、囲み線内のノードの内容から推測するか、空白にしてください
+- 既存の接続は維持してください（subgraph内のノードと外部ノードの接続も保持）
+`
+    : ""
+}
 ${hint ? `## ユーザーからの補足: ${hint}` : ""}
 
 ## 解釈のヒント
@@ -634,6 +776,7 @@ ${hint ? `## ユーザーからの補足: ${hint}` : ""}
 - ストロークがノードの近くにある場合、そのノードとの関連を考慮してください
 - ノード間を結ぶような線は、接続（矢印）を意味する可能性が高いです
 - **X印（バツ）がノード上に描かれた場合は、そのノードを削除してください**
+- **閉じた図形（囲み線）がノードを囲んでいる場合は、そのノードをsubgraphとしてグループ化してください**
 
 これらのストロークを解釈して、Mermaidダイアグラムを更新してください。`;
 
