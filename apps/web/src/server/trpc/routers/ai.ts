@@ -1,265 +1,20 @@
-import { anthropic } from "@ai-sdk/anthropic";
-import { google } from "@ai-sdk/google";
-import { openai } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import { z } from "zod";
+import { getModel, getProviderOptions } from "../../ai/config";
+import {
+  type NodePosition,
+  type Stroke,
+  detectEnclosure,
+  detectXMark,
+} from "../../ai/detection";
+import { parseAiResponse } from "../../ai/parsing";
+import { SYSTEM_PROMPT, getStrokeInterpretationPrompt } from "../../ai/prompts";
+import {
+  formatNodePositions,
+  formatStrokeDescriptions,
+} from "../../ai/strokeUtils";
 import { DIAGRAM_TYPES, type DiagramType } from "../../db/schema";
 import { publicProcedure, router } from "../init";
-
-/**
- * 現在のAIプロバイダーを取得
- */
-function getProvider() {
-  return process.env.AI_PROVIDER ?? "anthropic";
-}
-
-/**
- * 使用するAIモデルを選択
- * 環境変数 AI_PROVIDER で切り替え可能
- * - "anthropic" → Claude (デフォルト)
- * - "google" → Gemini
- * - "openai" → GPT-4o-mini
- */
-function getModel() {
-  const provider = getProvider();
-  if (provider === "openai") {
-    return openai("gpt-4o-mini");
-  }
-  if (provider === "google") {
-    return google("gemini-2.0-flash");
-  }
-  return anthropic("claude-sonnet-4-20250514");
-}
-
-/**
- * Claude用のextended thinking設定を取得
- */
-function getProviderOptions() {
-  const provider = getProvider();
-  if (provider === "anthropic") {
-    return {
-      anthropic: {
-        thinking: {
-          type: "enabled" as const,
-          budgetTokens: 10000, // 思考に使うトークン数
-        },
-      },
-    };
-  }
-  return undefined;
-}
-
-/**
- * 図の種類ごとの構文ルール
- */
-const DIAGRAM_SYNTAX_RULES: Record<DiagramType, string> = {
-  flowchart: `## フローチャート (flowchart) の構文
-- \`flowchart TD\` (上から下) または \`flowchart LR\` (左から右) で始まる
-- ノードの定義: \`A[テキスト]\`, \`B{条件}\`, \`C((円形))\`, \`D([楕円])\`
-- 接続: \`A --> B\`, \`A -->|ラベル| B\`, \`A --- B\`
-- スタイル: \`style A fill:#f9f,stroke:#333\`
-- サブグラフ（グループ化）:
-  \`\`\`
-  subgraph タイトル
-    A[ノード1]
-    B[ノード2]
-    A --> B
-  end
-  \`\`\`
-  - 囲み線で複数のノードを囲んだ場合、それらをsubgraphとしてグループ化する
-  - subgraph内のノードと外部ノードの接続も維持する
-  - タイトルは囲み線内のノードの内容から推測するか、空白にする`,
-
-  sequence: `## シーケンス図 (sequenceDiagram) の構文
-- \`sequenceDiagram\` で始まる
-- 参加者: \`participant A as エイリアス\`
-- メッセージ: \`A->>B: メッセージ\` (同期), \`A-->>B: メッセージ\` (応答)
-- アクティベーション: \`activate A\` ... \`deactivate A\`
-- ノート: \`Note right of A: テキスト\`
-- ループ: \`loop 条件\` ... \`end\``,
-
-  classDiagram: `## クラス図 (classDiagram) の構文
-- \`classDiagram\` で始まる
-- クラス定義: \`class クラス名 { +メソッド() -プロパティ }\`
-- 継承: \`親クラス <|-- 子クラス\`
-- 実装: \`インターフェース <|.. 実装クラス\`
-- 集約: \`A o-- B\`, 合成: \`A *-- B\`
-- 関連: \`A --> B\` または \`A -- B\``,
-
-  stateDiagram: `## 状態遷移図 (stateDiagram-v2) の構文
-- \`stateDiagram-v2\` で始まる
-- 開始: \`[*] --> 状態名\`
-- 終了: \`状態名 --> [*]\`
-- 遷移: \`状態A --> 状態B : イベント\`
-- 複合状態: \`state 状態名 { ... }\`
-- フォーク/ジョイン: \`state fork_state <<fork>>\``,
-
-  erDiagram: `## ER図 (erDiagram) の構文
-- \`erDiagram\` で始まる
-- エンティティ: \`ENTITY_NAME { type attribute_name }\`
-- 属性タイプ: \`string\`, \`int\`, \`text\`, \`date\` など
-- キー: \`PK\` (主キー), \`FK\` (外部キー)
-- リレーション: \`||--o{\` (1対多), \`||--||\` (1対1), \`}o--o{\` (多対多)`,
-};
-
-/**
- * 図の種類ごとのストローク解釈ルール
- */
-const DIAGRAM_STROKE_RULES: Record<DiagramType, string> = {
-  flowchart: `## ストロークの解釈ルール（フローチャート）
-- 四角形に近い形 → ノード（処理ブロック）の追加
-- ひし形に近い形 → 条件分岐（decision）の追加
-- 円形に近い形 → 開始/終了ノードの追加
-- 線や矢印（既存ノード間を結ぶもの） → ノード間の接続を追加
-- **X印（バツ）がノード上に描かれた場合 → そのノードと関連する接続を削除**
-- **閉じた図形（囲み線）が複数のノードを囲んでいる場合 → それらのノードをsubgraphとしてグループ化**
-  - 囲み線は開始点と終了点が近い（50px以内）閉じたストローク
-  - 囲み線内に含まれるノードを特定し、subgraphブロック内に移動する
-  - 囲み線内のノードと外部ノードの接続は維持する
-  - subgraphのタイトルは囲み線内のノードの内容から推測する`,
-
-  sequence: `## ストロークの解釈ルール（シーケンス図）
-- 縦の直線 → 新しい参加者（participant）の追加
-- 横向きの矢印 → メッセージの追加
-- 点線の矢印 → 応答メッセージ
-- 四角の囲み → アクティベーション領域
-- **X印（バツ）が参加者上に描かれた場合 → その参加者を削除**`,
-
-  classDiagram: `## ストロークの解釈ルール（クラス図）
-- 四角形 → 新しいクラスの追加
-- 三角矢印 → 継承関係
-- 通常の矢印 → 関連
-- ひし形 → 集約/合成
-- **X印（バツ）がクラス上に描かれた場合 → そのクラスを削除**`,
-
-  stateDiagram: `## ストロークの解釈ルール（状態遷移図）
-- 円形/楕円 → 状態の追加
-- 塗りつぶした円 → 開始状態 [*]
-- 二重円 → 終了状態
-- 矢印 → 状態遷移
-- **X印（バツ）が状態上に描かれた場合 → その状態を削除**`,
-
-  erDiagram: `## ストロークの解釈ルール（ER図）
-- 四角形 → エンティティの追加
-- 線 → リレーションの追加
-- 線の端の形状で多重度を判断（1、多など）
-- **X印（バツ）がエンティティ上に描かれた場合 → そのエンティティを削除**`,
-};
-
-/**
- * 図の種類に応じたストローク解釈用プロンプトを生成
- */
-function getStrokeInterpretationPrompt(diagramType: DiagramType): string {
-  return `あなたは手書きストロークを解釈してMermaidダイアグラムを生成・編集するAIアシスタントです。
-
-## 現在編集中の図の種類: ${diagramType}
-
-## あなたの役割
-- **画像が提供された場合は、画像を優先的に分析する**（手書き文字の認識、図形の解釈）
-- ユーザーの手書きストローク（座標データ）を分析する
-- ストロークの形状や配置から、ユーザーの意図を推測する
-- 現在のMermaidコードを考慮して、適切な修正を行う
-
-## 重要：画像解析（マルチモーダル）
-画像が提供された場合：
-- **手書きの文字を読み取ってください**（ノードのラベルとして使用）
-- 手書きの図形を認識してください
-- 既存のダイアグラムと手書きの位置関係を分析してください
-- 紫色の線が手書きストロークです
-
-${DIAGRAM_SYNTAX_RULES[diagramType]}
-
-${DIAGRAM_STROKE_RULES[diagramType]}
-
-## ノード位置情報の活用
-座標データも併せて提供されます：
-- **ストロークの座標と既存要素の位置を比較**して、どの要素に対する操作かを判断
-- ストロークの始点・終点がどの要素に近いかで、関係を推測
-- ストロークが要素を囲んでいる場合は、その要素の修正や強調を意味する
-
-## X印（バツ）による削除の重要ルール
-ユーザーが要素の上に「X」の形（2本の斜め線が交差）を描いた場合：
-1. その要素をMermaidコードから削除する
-2. その要素への/からの接続も削除する
-3. 削除により孤立する要素があれば、適切に処理する
-4. 削除後もダイアグラムが有効な構造を維持するようにする
-
-## 座標データの解釈
-- points配列は [x1, y1, x2, y2, ...] の形式
-- ストロークの開始点と終了点の近さで閉じた図形かを判断
-- **ストロークの座標と既存要素の座標を比較して、操作対象を特定**
-
-## 出力形式
-以下の形式で出力してください：
-
----MERMAID_START---
-(修正後のMermaidコード)
----MERMAID_END---
-
----REASON_START---
-(何を検出して、どのような修正を行ったかの説明)
----REASON_END---
-
-## 注意事項
-- 必ず有効なMermaid ${diagramType} 構文を出力すること
-- 既存の要素を保持しつつ、新しい要素を追加すること
-- 不明確な場合は、最も可能性の高い解釈を選ぶこと
-- 図の種類に適した構文を使用すること`;
-}
-
-/**
- * Mermaid操作用のシステムプロンプト
- */
-const SYSTEM_PROMPT = `あなたはMermaidダイアグラムの編集を支援するAIアシスタントです。
-
-ユーザーから図の修正依頼を受けると、Mermaidコードを修正して返します。
-
-## あなたの役割
-- ユーザーの自然言語による指示を理解する
-- 現在のMermaidコードを分析する
-- 適切な修正を行い、新しいMermaidコードを出力する
-
-## Mermaid構文のルール
-- flowchartの場合: \`flowchart TD\` または \`flowchart LR\` で始まる
-- ノードの定義: \`A[テキスト]\`, \`B{条件}\`, \`C((円形))\`, \`D([楕円])\`
-- 接続: \`A --> B\`, \`A -->|ラベル| B\`, \`A --- B\`
-- スタイル: \`style A fill:#f9f,stroke:#333\`
-
-## 出力形式
-以下の形式で出力してください：
-
----MERMAID_START---
-(修正後のMermaidコード)
----MERMAID_END---
-
----REASON_START---
-(修正内容の説明)
----REASON_END---
-
-## 注意事項
-- 必ず有効なMermaid構文を出力すること
-- 既存のノードや接続を保持しつつ、ユーザーの指示に従って修正すること
-- 必ず上記の形式で出力すること`;
-
-/**
- * AIの応答からMermaidコードと理由を抽出
- */
-function parseAiResponse(text: string): {
-  mermaidCode: string | null;
-  reason: string | null;
-} {
-  const mermaidMatch = text.match(
-    /---MERMAID_START---\s*([\s\S]*?)\s*---MERMAID_END---/,
-  );
-  const reasonMatch = text.match(
-    /---REASON_START---\s*([\s\S]*?)\s*---REASON_END---/,
-  );
-
-  return {
-    mermaidCode: mermaidMatch?.[1]?.trim() ?? null,
-    reason: reasonMatch?.[1]?.trim() ?? null,
-  };
-}
 
 /**
  * AIチャット用のルーター
@@ -428,310 +183,42 @@ ${currentMermaidCode}
         };
       }
 
-      // ストロークのバウンディングボックスを計算するヘルパー
-      const getStrokeBounds = (points: number[]) => {
-        let minX = Number.POSITIVE_INFINITY;
-        let maxX = Number.NEGATIVE_INFINITY;
-        let minY = Number.POSITIVE_INFINITY;
-        let maxY = Number.NEGATIVE_INFINITY;
-        for (let i = 0; i < points.length; i += 2) {
-          const x = points[i];
-          const y = points[i + 1];
-          if (x !== undefined && y !== undefined) {
-            minX = Math.min(minX, x);
-            maxX = Math.max(maxX, x);
-            minY = Math.min(minY, y);
-            maxY = Math.max(maxY, y);
-          }
-        }
-        return {
-          minX,
-          maxX,
-          minY,
-          maxY,
-          centerX: (minX + maxX) / 2,
-          centerY: (minY + maxY) / 2,
-        };
-      };
+      // ストロークを型安全に変換
+      const typedStrokes: Stroke[] = strokes.map((s) => ({
+        id: s.id,
+        points: s.points,
+        color: s.color,
+        strokeWidth: s.strokeWidth,
+      }));
 
-      // 2本のストロークがX印（バツ）を形成しているか判定
-      const detectXMark = (): {
-        isXMark: boolean;
-        centerX: number;
-        centerY: number;
-        targetNodeId: string | null;
-      } | null => {
-        if (strokes.length < 2) return null;
-
-        // 最後の2本のストロークをチェック
-        const stroke1 = strokes[strokes.length - 2];
-        const stroke2 = strokes[strokes.length - 1];
-
-        if (!stroke1 || !stroke2) return null;
-
-        const p1 = stroke1.points;
-        const p2 = stroke2.points;
-
-        const bounds1 = getStrokeBounds(p1);
-        const bounds2 = getStrokeBounds(p2);
-
-        // 両ストロークが近い位置にあるか（中心が近い）
-        const centerDist = Math.sqrt(
-          (bounds1.centerX - bounds2.centerX) ** 2 +
-            (bounds1.centerY - bounds2.centerY) ** 2,
-        );
-
-        // 両ストロークのサイズが似ているか
-        const size1 = Math.max(
-          bounds1.maxX - bounds1.minX,
-          bounds1.maxY - bounds1.minY,
-        );
-        const size2 = Math.max(
-          bounds2.maxX - bounds2.minX,
-          bounds2.maxY - bounds2.minY,
-        );
-        const sizeDiff = Math.abs(size1 - size2) / Math.max(size1, size2);
-
-        // X印の条件: 中心が近く（50px以内）、サイズが似ている（差が50%以内）
-        if (centerDist < 80 && sizeDiff < 0.5) {
-          // 線が交差する形状かチェック（対角線的な動き）
-          const start1X = p1[0];
-          const start1Y = p1[1];
-          const end1X = p1[p1.length - 2];
-          const end1Y = p1[p1.length - 1];
-          const start2X = p2[0];
-          const start2Y = p2[1];
-          const end2X = p2[p2.length - 2];
-          const end2Y = p2[p2.length - 1];
-
-          if (
-            start1X === undefined ||
-            start1Y === undefined ||
-            end1X === undefined ||
-            end1Y === undefined ||
-            start2X === undefined ||
-            start2Y === undefined ||
-            end2X === undefined ||
-            end2Y === undefined
-          ) {
-            return null;
-          }
-
-          const start1 = { x: start1X, y: start1Y };
-          const end1 = { x: end1X, y: end1Y };
-          const start2 = { x: start2X, y: start2Y };
-          const end2 = { x: end2X, y: end2Y };
-
-          // 両方のストロークが斜め線か（開始点と終了点のX,Yが両方変化）
-          const isDiagonal1 =
-            Math.abs(end1.x - start1.x) > 20 &&
-            Math.abs(end1.y - start1.y) > 20;
-          const isDiagonal2 =
-            Math.abs(end2.x - start2.x) > 20 &&
-            Math.abs(end2.y - start2.y) > 20;
-
-          if (isDiagonal1 && isDiagonal2) {
-            // X印の中心座標
-            const xCenter = (bounds1.centerX + bounds2.centerX) / 2;
-            const yCenter = (bounds1.centerY + bounds2.centerY) / 2;
-
-            // どのノードの上にあるか判定
-            let targetNodeId: string | null = null;
-            if (nodePositions && nodePositions.length > 0) {
-              for (const node of nodePositions) {
-                // X印の中心がノードの範囲内にあるか
-                if (
-                  xCenter >= node.x - 20 &&
-                  xCenter <= node.x + node.width + 20 &&
-                  yCenter >= node.y - 20 &&
-                  yCenter <= node.y + node.height + 20
-                ) {
-                  targetNodeId = node.id;
-                  break;
-                }
-              }
-            }
-
-            return {
-              isXMark: true,
-              centerX: xCenter,
-              centerY: yCenter,
-              targetNodeId,
-            };
-          }
-        }
-
-        return null;
-      };
+      // ノード位置情報を型安全に変換
+      const typedNodePositions: NodePosition[] | undefined = nodePositions?.map(
+        (n) => ({
+          id: n.id,
+          label: n.label,
+          x: n.x,
+          y: n.y,
+          width: n.width,
+          height: n.height,
+          centerX: n.centerX,
+          centerY: n.centerY,
+        }),
+      );
 
       // X印を検出
-      const xMarkDetection = detectXMark();
-
-      // 囲み線（閉じた図形）を検出し、内部のノードを特定
-      const detectEnclosure = (): {
-        isEnclosure: boolean;
-        strokeIndex: number;
-        bounds: {
-          minX: number;
-          maxX: number;
-          minY: number;
-          maxY: number;
-          centerX: number;
-          centerY: number;
-        };
-        enclosedNodeIds: string[];
-      } | null => {
-        // 各ストロークをチェック
-        for (let i = 0; i < strokes.length; i++) {
-          const stroke = strokes[i];
-          if (!stroke) continue;
-
-          const points = stroke.points;
-          if (points.length < 6) continue; // 最低3点必要
-
-          const startX = points[0];
-          const startY = points[1];
-          const endX = points[points.length - 2];
-          const endY = points[points.length - 1];
-
-          if (
-            startX === undefined ||
-            startY === undefined ||
-            endX === undefined ||
-            endY === undefined
-          ) {
-            continue;
-          }
-
-          // 閉じた図形かどうか（開始点と終了点が近い）
-          const distanceToClose = Math.sqrt(
-            (startX - endX) ** 2 + (startY - endY) ** 2,
-          );
-
-          // 閉じた図形の条件: 開始点と終了点が50px以内
-          if (distanceToClose < 50) {
-            const bounds = getStrokeBounds(points);
-            const width = bounds.maxX - bounds.minX;
-            const height = bounds.maxY - bounds.minY;
-
-            // 囲み線として有効な最小サイズ（100x100px以上）
-            if (width < 100 || height < 100) {
-              continue;
-            }
-
-            // 点が多角形内にあるか判定する関数（Ray Casting Algorithm）
-            const isPointInPolygon = (
-              px: number,
-              py: number,
-              polygonPoints: number[],
-            ): boolean => {
-              let inside = false;
-              for (let j = 0; j < polygonPoints.length - 2; j += 2) {
-                const x1 = polygonPoints[j];
-                const y1 = polygonPoints[j + 1];
-                const x2 = polygonPoints[j + 2];
-                const y2 = polygonPoints[j + 3];
-
-                if (
-                  x1 === undefined ||
-                  y1 === undefined ||
-                  x2 === undefined ||
-                  y2 === undefined
-                ) {
-                  continue;
-                }
-
-                const intersect =
-                  y1 > py !== y2 > py &&
-                  px < ((x2 - x1) * (py - y1)) / (y2 - y1) + x1;
-                if (intersect) {
-                  inside = !inside;
-                }
-              }
-              return inside;
-            };
-
-            // 囲み線内に含まれるノードを特定
-            const enclosedNodeIds: string[] = [];
-            if (nodePositions && nodePositions.length > 0) {
-              for (const node of nodePositions) {
-                // ノードの中心点が囲み線内にあるかチェック
-                if (isPointInPolygon(node.centerX, node.centerY, points)) {
-                  enclosedNodeIds.push(node.id);
-                }
-              }
-            }
-
-            // 囲み線として有効（内部にノードが1つ以上ある）
-            if (enclosedNodeIds.length > 0) {
-              return {
-                isEnclosure: true,
-                strokeIndex: i,
-                bounds,
-                enclosedNodeIds,
-              };
-            }
-          }
-        }
-
-        return null;
-      };
+      const xMarkDetection = detectXMark(typedStrokes, typedNodePositions);
 
       // 囲み線を検出
-      const enclosureDetection = detectEnclosure();
+      const enclosureDetection = detectEnclosure(
+        typedStrokes,
+        typedNodePositions,
+      );
 
       // ストロークデータを解析用のテキストに変換
-      const strokeDescriptions = strokes
-        .map((stroke, index) => {
-          const points = stroke.points;
-          const numPoints = points.length / 2;
-          const startX = points[0];
-          const startY = points[1];
-          const endX = points[points.length - 2];
-          const endY = points[points.length - 1];
-
-          if (
-            startX === undefined ||
-            startY === undefined ||
-            endX === undefined ||
-            endY === undefined
-          ) {
-            return `ストローク${index + 1}: 無効なデータ`;
-          }
-
-          // バウンディングボックスを計算
-          const { minX, maxX, minY, maxY, centerX, centerY } =
-            getStrokeBounds(points);
-          const width = maxX - minX;
-          const height = maxY - minY;
-
-          // 閉じた図形かどうか
-          const isClosed =
-            Math.sqrt((startX - endX) ** 2 + (startY - endY) ** 2) < 50;
-
-          // アスペクト比
-          const aspectRatio = width / (height || 1);
-
-          return `ストローク${index + 1}:
-  - 点数: ${numPoints}
-  - 範囲: (${Math.round(minX)}, ${Math.round(minY)}) ～ (${Math.round(maxX)}, ${Math.round(maxY)})
-  - 中心: (${Math.round(centerX)}, ${Math.round(centerY)})
-  - サイズ: ${Math.round(width)} x ${Math.round(height)}
-  - 閉じた形状: ${isClosed ? "はい" : "いいえ"}
-  - アスペクト比: ${aspectRatio.toFixed(2)}`;
-        })
-        .join("\n\n");
+      const strokeDescriptions = formatStrokeDescriptions(typedStrokes);
 
       // ノード位置情報をテキストに変換
-      const nodePositionDescriptions =
-        nodePositions && nodePositions.length > 0
-          ? nodePositions
-              .map(
-                (node) =>
-                  `- ノード「${node.label}」(ID: ${node.id}): 位置=(${node.x}, ${node.y}), サイズ=${node.width}x${node.height}, 中心=(${node.centerX}, ${node.centerY})`,
-              )
-              .join("\n")
-          : "（ノード位置情報なし）";
+      const nodePositionDescriptions = formatNodePositions(typedNodePositions);
 
       const userMessage = `現在のMermaidコード:
 \`\`\`mermaid
