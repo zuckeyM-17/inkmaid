@@ -1,14 +1,19 @@
+# ========================================
+# ⚠️ このワークフローは無効化されています
+# メンテナンス停止のため、トリガーをコメントアウトしています
+# ========================================
+
 # CI - 継続的インテグレーション
 #
 # プルリクエストとmainブランチへのプッシュ時に実行
 
-name: CI
+name: CI (Disabled)
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+# on:
+#   push:
+#     branches: [main]
+#   pull_request:
+#     branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
