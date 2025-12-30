@@ -1,7 +1,12 @@
+# ========================================
+# ⚠️ このワークフローは無効化されています
+# メンテナンス停止のため、トリガーをコメントアウトしています
+# ========================================
+
 # Renovate Bot - 依存関係の自動アップデート
-# 
+#
 # このワークフローはRenovateをself-hostedで実行します。
-# 
+#
 # 必要なシークレット:
 #   RENOVATE_TOKEN: GitHubのPersonal Access Token (PAT)
 #     - 必要な権限: repo, workflow, read:org (privateリポジトリの場合)
@@ -9,33 +14,33 @@
 #
 # 参考: https://docs.renovatebot.com/self-hosted-configuration/
 
-name: Renovate
+name: Renovate (Disabled)
 
-on:
-  # 定期実行: 毎日 9:00 JST (0:00 UTC)
-  schedule:
-    - cron: '0 0 * * *'
-  # 手動実行
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'Dry run (変更を実際には行わない)'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
-      log_level:
-        description: 'ログレベル'
-        required: false
-        default: 'info'
-        type: choice
-        options:
-          - 'debug'
-          - 'info'
-          - 'warn'
-          - 'error'
+# on:
+#   # 定期実行: 毎日 9:00 JST (0:00 UTC)
+#   schedule:
+#     - cron: '0 0 * * *'
+#   # 手動実行
+#   workflow_dispatch:
+#     inputs:
+#       dry_run:
+#         description: 'Dry run (変更を実際には行わない)'
+#         required: false
+#         default: 'false'
+#         type: choice
+#         options:
+#           - 'true'
+#           - 'false'
+#       log_level:
+#         description: 'ログレベル'
+#         required: false
+#         default: 'info'
+#         type: choice
+#         options:
+#           - 'debug'
+#           - 'info'
+#           - 'warn'
+#           - 'error'
 
 # 同時実行を防止
 concurrency:
