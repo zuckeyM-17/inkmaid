@@ -7,7 +7,9 @@
       "Bash(pnpm --filter web lint:check:*)",
       "WebSearch",
       "WebFetch(domain:langfuse.com)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nメンテナンス停止のためCI/CD及び依存関係更新を無効化\n\n- GitHub Actionsのワークフロー\\(CI, Renovate\\)を無効化\n- README.mdにメンテナンス停止の警告を追加\n- renovate.jsonを無効化\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
